@@ -18,7 +18,7 @@ An out-of-tree Workspace Apps control plane for [DeepSeek Harness](https://githu
 Requirements: a DeepSeek Harness 0.1.1-rc.2 source build (or a later compatible 0.1.x release), Node.js 20 or newer, and pnpm 11.7.0 on `PATH`. This package uses seams introduced after 0.1.0-rc.6 and is not compatible with the older 0.1.0-rc.6 public release.
 
 ```sh
-dsh plugin --profile <profile> add @catwine901/dsh-workspace-manager@1.0.0
+dsh plugin --profile <profile> add @tingyu9527/dsh-workspace-manager@1.0.0
 dsh --profile <profile>
 ```
 
@@ -27,8 +27,8 @@ Open **Plugins → Workspace Apps** to manage compatible Workspace App packages.
 To update or remove the manager:
 
 ```sh
-dsh plugin --profile <profile> update @catwine901/dsh-workspace-manager
-dsh plugin --profile <profile> remove @catwine901/dsh-workspace-manager
+dsh plugin --profile <profile> update @tingyu9527/dsh-workspace-manager
+dsh plugin --profile <profile> remove @tingyu9527/dsh-workspace-manager
 ```
 
 The repository can also be installed directly when it contains the release artifacts:

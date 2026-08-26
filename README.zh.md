@@ -18,7 +18,7 @@
 要求：DeepSeek Harness 0.1.1-rc.2 源码构建（或后续兼容的 0.1.x 版本）、Node.js 20 或更高版本，并确保 pnpm 11.7.0 位于 `PATH`。本包依赖 0.1.0-rc.6 之后新增的 seam，因此不兼容较旧的 0.1.0-rc.6 公共版本。
 
 ```sh
-dsh plugin --profile <profile> add @catwine901/dsh-workspace-manager@1.0.0
+dsh plugin --profile <profile> add @tingyu9527/dsh-workspace-manager@1.0.0
 dsh --profile <profile>
 ```
 
@@ -27,8 +27,8 @@ dsh --profile <profile>
 更新或移除 Manager：
 
 ```sh
-dsh plugin --profile <profile> update @catwine901/dsh-workspace-manager
-dsh plugin --profile <profile> remove @catwine901/dsh-workspace-manager
+dsh plugin --profile <profile> update @tingyu9527/dsh-workspace-manager
+dsh plugin --profile <profile> remove @tingyu9527/dsh-workspace-manager
 ```
 
 当 GitHub 仓库已包含发布产物时，也可以直接安装：
