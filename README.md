@@ -15,12 +15,16 @@ An out-of-tree Workspace Apps control plane for [DeepSeek Harness](https://githu
 
 ## Install
 
-Requirements: a DeepSeek Harness 0.1.1-rc.2 source build (or a later compatible 0.1.x release), Node.js 20 or newer, and pnpm 11.7.0 on `PATH`. This package uses seams introduced after 0.1.0-rc.6 and is not compatible with the older 0.1.0-rc.6 public release.
+Requirements: the npm release `@deepseek-ai/dsh@0.1.1-rc.2`, Node.js 20 or newer, and pnpm 11.7.0 on `PATH`. This package uses seams introduced after 0.1.0-rc.6 and is not compatible with the older 0.1.0-rc.6 public release.
+
+Version 1.0.1 fixes external-consumer installation: it inlines the unpublished `dsh-page-app-profile` implementation, so an ordinary npm DSH user does not require a DSH source build.
 
 ```sh
-dsh plugin --profile <profile> add @tingyu9527/dsh-workspace-manager@1.0.0
-dsh --profile <profile>
+dsh plugin --profile web add @tingyu9527/dsh-workspace-manager
+dsh web
 ```
+
+For a reproducible install, append the optional `@1.0.1` version pin to the package name.
 
 Open **Plugins → Workspace Apps** to manage compatible Workspace App packages.
 
@@ -58,7 +62,8 @@ Managed Features run below a Feature Runtime Wrapper. Provider loss parks the Fe
 
 ## Compatibility and limits
 
-- This 1.0.0 release targets the DSH 0.1.1-rc.2 seam packages and `@deepseek-ai/cordis` 4.0.x.
+- This 1.0.1 release targets the public npm-form DSH 0.1.1-rc.2 seam packages and `@deepseek-ai/cordis` 4.0.x.
+- Its explicitly named legacy rc.2 compatibility bridge coordinates the public rc.2 profile watcher with manager changes. On a future DSH Host that provides the native `ProfileRuntime` capability, the bridge automatically stays inactive.
 - Installation requires the Host client-module registry because activation must be acknowledged against an exact client-graph revision.
 - Packages that need install scripts may require an operator-managed pnpm build allowance; the manager will not grant it automatically.
 - Registry and user data are retained when the manager or an individual Workspace App is removed.

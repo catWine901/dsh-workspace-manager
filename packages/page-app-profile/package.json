@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-page-app-profile",
   "description": "Host-safe page-app profile core: manifest/registry parsing, exact profile paths, deterministic runtime-layer serialization, journaled transactions, and the shared profile mutation lock",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publishConfig": {
     "access": "public"
   },

@@ -15,12 +15,16 @@
 
 ## 安装
 
-要求：DeepSeek Harness 0.1.1-rc.2 源码构建（或后续兼容的 0.1.x 版本）、Node.js 20 或更高版本，并确保 pnpm 11.7.0 位于 `PATH`。本包依赖 0.1.0-rc.6 之后新增的 seam，因此不兼容较旧的 0.1.0-rc.6 公共版本。
+要求：npm 发布包 `@deepseek-ai/dsh@0.1.1-rc.2`、Node.js 20 或更高版本，并确保 pnpm 11.7.0 位于 `PATH`。本包依赖 0.1.0-rc.6 之后新增的 seam，因此不兼容较旧的 0.1.0-rc.6 公共版本。
+
+1.0.1 修复 external consumer 安装：它内联未发布的 `dsh-page-app-profile` 实现，因此普通 npm DSH 用户不再要求 DSH source build。
 
 ```sh
-dsh plugin --profile <profile> add @tingyu9527/dsh-workspace-manager@1.0.0
-dsh --profile <profile>
+dsh plugin --profile web add @tingyu9527/dsh-workspace-manager
+dsh web
 ```
+
+如需可复现安装，可在包名后追加可选的 `@1.0.1` 版本锁定。
 
 打开 **Plugins → Workspace Apps** 管理兼容的 Workspace App 包。
 
@@ -58,7 +62,8 @@ dsh plugin --profile <profile> add github:catWine901/dsh-workspace-manager
 
 ## 兼容性与限制
 
-- 1.0.0 面向 DSH 0.1.1-rc.2 seam 包与 `@deepseek-ai/cordis` 4.0.x。
+- 1.0.1 面向公开 npm 形态的 DSH 0.1.1-rc.2 seam 包与 `@deepseek-ai/cordis` 4.0.x。
+- 明确命名的旧版 rc.2 兼容桥负责协调公开 rc.2 profile watcher 与 Manager 变更；未来 DSH Host 提供原生 `ProfileRuntime` 能力时，该桥会自动保持不激活。
 - 安装依赖 Host client-module registry，因为激活必须对精确 client graph revision 完成确认。
 - 如果包需要执行安装脚本，操作者可能需要自行配置 pnpm build allowance；Manager 不会自动授权。
 - 移除 Manager 或单个 Workspace App 时，registry 与用户数据会被保留。

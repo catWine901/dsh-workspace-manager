@@ -1,4 +1,6 @@
 - insert:
+    - id: page-app-manager-legacy-rc2-compat
+      name: '@tingyu9527/dsh-workspace-manager/legacy-rc2-compat'
     - id: page-app-manager
       name: '@tingyu9527/dsh-workspace-manager'
       config:

@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-page-app-manager",
   "description": "Host page-app manager: profile-scoped ownership projection, install-source parsing, static Workspace Contract validation, and the read-only manager service (transactions and Remote come in later tasks)",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publishConfig": {
     "access": "public"
   },
@@ -13,6 +13,10 @@
     ".": {
       "types": "./lib/types/index.d.ts",
       "default": "./lib/index.js"
+    },
+    "./legacy-rc2-compat": {
+      "types": "./lib/types/legacy-rc2-compat.d.ts",
+      "default": "./lib/types/legacy-rc2-compat.js"
     },
     "./types": {
       "types": "./lib/types/types.d.ts",
@@ -40,6 +44,7 @@
     "lib/index.js",
     "lib/invariant.js",
     "lib/execa-*.js",
+    "lib/legacy-rc2-compat.js",
     "lib/types/**/*.js",
     "lib/types/**/*.d.ts",
     "lib/typert.host.js",
@@ -49,7 +54,7 @@
   ],
   "dependencies": {
     "@deepseek-ai/dsh-app-boot": "^0.1.0",
-    "@deepseek-ai/dsh-page-app-profile": "^1.0.0",
+    "@deepseek-ai/dsh-page-app-profile": "^1.0.1",
     "@deepseek-ai/dsh-typert-protocol": "^0.1.0",
     "js-yaml": "^4.2.0",
     "zod": "^4.0.0"

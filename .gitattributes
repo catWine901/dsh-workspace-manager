@@ -1,0 +1,2 @@
+# The browser bundle contains indentation inside generated template literals.
+lib/client.js whitespace=-blank-at-eol

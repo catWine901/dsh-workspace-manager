@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-client-ui-page-app-manager",
   "description": "Workspace Apps client: React-free controller and authorization projection over the generated pageAppManager remote, the slot ledger, and the reconciled client graph",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publishConfig": {
     "access": "public"
   },
@@ -49,7 +49,7 @@
     "@deepseek-ai/dsh-client-runtime": "^0.1.0",
     "@deepseek-ai/dsh-client-ui-settings": "^0.1.0",
     "@deepseek-ai/dsh-invariants": "^0.1.0",
-    "@deepseek-ai/dsh-page-app-manager": "^1.0.0"
+    "@deepseek-ai/dsh-page-app-manager": "^1.0.1"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^0.1.0",
@@ -60,7 +60,7 @@
     "@deepseek-ai/dsh-client-ui-settings": "^0.1.0",
     "@deepseek-ai/dsh-client-ui-slots": "^0.1.0",
     "@deepseek-ai/dsh-invariants": "^0.1.0",
-    "@deepseek-ai/dsh-page-app-manager": "^1.0.0",
+    "@deepseek-ai/dsh-page-app-manager": "^1.0.1",
     "@types/react": "~18.3.1",
     "react": "^18.2.0"
   },
