@@ -1,10 +1,20 @@
 {
   "name": "@tingyu9527/dsh-workspace-manager",
   "description": "Out-of-tree DSH Workspace Apps manager",
-  "version": "1.0.1",
+  "version": "1.0.1-workspace-shell.1",
   "private": false,
   "type": "module",
   "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "build:client": "node scripts/build-client.mjs",
+    "host:status": "node scripts/patch-host.mjs status",
+    "host:patch": "node scripts/patch-host.mjs apply",
+    "host:restore": "node scripts/patch-host.mjs restore"
+  },
+  "devDependencies": {
+    "tsdown": "0.22.2",
+    "lightningcss": "1.32.0"
+  },
   "main": "./lib/index.js",
   "types": "./lib/types/index.d.ts",
   "exports": {
@@ -28,6 +38,9 @@
   },
   "files": [
     "lib",
+    "docs",
+    "scripts/patch-host.mjs",
+    "host-patches",
     "cordis.patch.yml",
     "README.md",
     "README.zh.md",
@@ -50,7 +63,8 @@
     "url": "https://github.com/catWine901/dsh-workspace-manager/issues"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "tag": "next"
   },
   "dsh": {
     "bundle": {

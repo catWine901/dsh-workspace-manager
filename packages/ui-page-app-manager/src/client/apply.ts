@@ -1,14 +1,15 @@
 /**
- * Workspace App shell registration: the manager owns the built-in `root` seat
- * and declares both child seats — the built-in DSH seat (`page-app.shell.
- * builtin`) and the keyed managed-surface seat (`page-app.shell.surface`).
+ * Workspace App registration: Native DSH receives the manager root shell;
+ * the existing rc2 build flag selects the host-provided `page-app.shell` wrapper,
+ * not runtime Host-capability detection. The controller is shared with
+ * Settings regardless of the selected shell strategy.
  * The controller is constructed with the real generated `pageAppManager`
  * remote namespace, a slots-seam over the runtime ledger, a per-controller
  * opaque `crypto.randomUUID()` client instance, and an HMR graph-convergence
- * wait. The built-in seat never depends on remote readiness: without the
- * remote namespace the shell still registers (the controller degrades to a
- * read-only empty projection and DSH stays mounted), so composition ordering
- * cannot block the Original DSH Surface.
+ * wait. Native DSH's built-in seat never depends on remote readiness: without
+ * the remote namespace its shell still registers (the controller degrades to
+ * a read-only empty projection and DSH stays mounted), so composition
+ * ordering cannot block the Original DSH Surface.
  * @module @deepseek-ai/dsh-client-ui-page-app-manager/client/apply
  */
 
@@ -28,14 +29,15 @@ import { PAGE_APP_SURFACE_SLOT } from './contracts.ts'
 import type {
   PageAppManagerRemoteMethods, PageAppRemoteEvents, PageAppRemoteResult, PageAppSlotsSeam,
 } from './contracts.ts'
-import { PageAppShell, type PageAppShellInjected } from './PageAppShell.tsx'
 import { PageAppSettingsTab, type PageAppSettingsTabInjected } from './PageAppSettingsTab.tsx'
+import { registerRc2PageAppShell } from './rc2-shell.ts'
+import { NS, PageAppShell, shellInjected, type PageAppShellDisposer } from './shell-registration.ts'
 import { parsePageAppInstallSourceClient } from './source.ts'
 import { en, zh, type PageAppSettingsKey } from './locales.ts'
 import { WorkbenchClientBridgeService } from './workbench.ts'
 
 /** Dictionary namespace owned by this plugin (Workspace Apps settings copy). */
-export const NS = 'settings.pageApp'
+export { NS } from './shell-registration.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -155,17 +157,6 @@ function createController(ctx: ClientContext): PageAppController {
   return new PageAppController(deps)
 }
 
-/** The shell's inject face: the controller observable plus the recovery actions. */
-function shellInjected(controller: PageAppController): PageAppShellInjected {
-  return {
-    hooks: { pageApp: controller.observable },
-    select: (pageId) => { controller.select(pageId) },
-    // The failure surface's uninstall runs the same flow as Settings (no
-    // cancellation UI on the shell; a fresh signal keeps the call valid).
-    uninstall: (pageId) => { void controller.uninstall(pageId, new AbortController().signal) },
-  }
-}
-
 /** The Settings tab's inject face: the controller observable plus mutations. */
 function settingsInjected(controller: PageAppController): PageAppSettingsTabInjected {
   return {
@@ -182,21 +173,37 @@ function settingsInjected(controller: PageAppController): PageAppSettingsTabInje
 /** Required services: the slot registry and the locale face (remote/modules are read defensively). */
 export const inject = ['slots', 'locale']
 
-// The public rc.2 shell predates the priority-1/child-seat handoff. Its
-// extracted manager build contributes Settings only so Native DSH keeps the
-// sole root registration. Remove with the pinned rc.2 compatibility build.
+// RC2 uses the explicit host wrapper patch instead of the newer child-seat handoff.
 function isLegacyRc2Client(): boolean {
   return process.env.DSH_CLIENT_PAGE_APP_MANAGER_LEGACY_RC2 === 'true'
 }
 
+/** Register the Native DSH root shell and its managed child seats. */
+function registerNativePageAppShell(
+  ctx: ClientContext,
+  controller: PageAppController,
+): PageAppShellDisposer {
+  return ctx.slots.register({
+    name: 'root',
+    children: {
+      'page-app.shell.builtin': {
+        kind: 'single',
+        scope: 'root',
+      },
+      'page-app.shell.surface': {
+        kind: 'keyed',
+        scope: 'root',
+      },
+    },
+    locale: NS,
+    inject: () => shellInjected(controller),
+  }, PageAppShell)
+}
+
 /**
- * Register the Workspace App shell into the built-in `root` seat and declare
- * both child seats, and contribute the Workspace Apps tab to Settings →
- * Plugins (spec §21/§22). The controller starts with the registration and
- * stops with its fiber; the built-in DSH seat mounts immediately regardless of
- * remote readiness (spec §3 guarantees the permanent fallback surface). The
- * Settings tab and the shell share one controller, so state and mutations
- * stay consistent across both surfaces.
+ * Select a shell registration strategy and contribute the Workspace Apps tab
+ * to Settings → Plugins. The controller starts with the registrations and
+ * stops with its fiber; Settings and the selected shell share one controller.
  * @param ctx - client root context.
  */
 export async function apply(ctx: ClientContext): Promise<void> {
@@ -217,6 +224,9 @@ export async function apply(ctx: ClientContext): Promise<void> {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-page-app-manager: dictionaries')
   ctx.effect(() => {
     const stopController = controller.start()
+    const disposeShell = isLegacyRc2Client()
+      ? registerRc2PageAppShell(ctx, controller)
+      : registerNativePageAppShell(ctx, controller)
     const disposers = [
       // One entry-error subscription per fiber: an abdicating managed surface
       // is recorded on the controller (the shell swaps in the failure face);
@@ -227,15 +237,7 @@ export async function apply(ctx: ClientContext): Promise<void> {
           controller.recordEntryError(entry.options.key)
         }
       }),
-      ...(isLegacyRc2Client() ? [] : [ctx.slots.register({
-        name: 'root',
-        children: {
-          'page-app.shell.builtin': { kind: 'single', scope: 'root' },
-          'page-app.shell.surface': { kind: 'keyed', scope: 'root' },
-        },
-        locale: NS,
-        inject: () => shellInjected(controller),
-      }, PageAppShell)]),
+      disposeShell,
       // The Workspace tab registers after the read-only `all` tab (order 10).
       ctx.slots.inject('settings.plugins.tab', () => ctx.slots.register({
         name: 'settings.plugins.tab',

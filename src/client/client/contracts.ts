@@ -6,6 +6,7 @@
  */
 
 import type { StoredEntry } from '@deepseek-ai/dsh-client-ui-slots'
+import type { ReactNode } from 'react'
 import type {
   PageAppActivationRequestedEvent, PageAppClientInstanceId, PageAppInstallSource,
   PageAppManagerSnapshot, PageAppTransactionId,
@@ -96,6 +97,8 @@ export interface PageAppSurfaceOwner {
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
+    /** Root-layout wrapper supplied by the RC2 host patch; Native DSH stays host-owned. */
+    'page-app.shell': { kind: 'single'; scope: 'root'; owner: { nativeSurface: ReactNode } }
     /**
      * The built-in Original DSH seat: the one permanent system surface that
      * the shell mounts unconditionally and hides (never unmounts) while a

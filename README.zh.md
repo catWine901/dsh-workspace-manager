@@ -1,77 +1,71 @@
-# DSH Workspace Manager
+# DSH Workspace Manager（RC2 外壳预发布版）
 
 [English](README.md) | 中文
 
-[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的树外 Workspace Apps 控制面。它作为 profile bundle 安装并提供 **Plugins → Workspace Apps**，同时保持内置 DSH shell 不依赖 Manager。
-
-## 功能
-
-- 按 profile 安装、启用、禁用、隐藏、排序和卸载 Workspace App。
-- 以 `.workspace-manager/registry.json` 作为唯一 ownership 权威。
-- 使用日志事务、共享 profile 锁、live tree 回滚和显式恢复。
-- 提供 Workbench Contract v1，使受管 Feature 自身保持 Cordis-free。
-- Manager 缺失、禁用、重载或渲染失败时，Native DSH 仍可使用。
-- 包管理与 profile 文件写入仅发生在 Host；浏览器只调用经过授权的 Remote 接口。
+版本 `1.0.1-workspace-shell.1` 是 **未完成完整验收的预发布版**，使用 npm `next` 标签。它仍然是独立 Manager 包，但公开 DSH 0.1.1-rc.2 必须先应用随包提供的宿主补丁；仅安装到未修改的公开 RC2 不会获得完整外壳效果。
 
 ## 安装
 
-要求：npm 发布包 `@deepseek-ai/dsh@0.1.1-rc.2`、Node.js 20 或更高版本，并确保 pnpm 11.7.0 位于 `PATH`。本包依赖 0.1.0-rc.6 之后新增的 seam，因此不兼容较旧的 0.1.0-rc.6 公共版本。
+停止 DSH 后，使用本仓库副本或解压后的 npm 包，按下文操作应用宿主补丁，再将 Manager 安装到实际使用的 DSH profile：
 
-1.0.1 修复 external consumer 安装：它内联未发布的 `dsh-page-app-profile` 实现，因此普通 npm DSH 用户不再要求 DSH source build。
-
-```sh
-dsh plugin --profile web add @tingyu9527/dsh-workspace-manager
-dsh web
+```powershell
+dsh plugin --profile web add @tingyu9527/dsh-workspace-manager@1.0.1-workspace-shell.1
 ```
 
-如需可复现安装，可在包名后追加可选的 `@1.0.1` 版本锁定。
+使用与原 web 实例相同的 `DSH_HOME`，然后重启 DSH。安装包不会自动修改宿主；稳定版 `latest` 仍保持 `1.0.1`。
 
-打开 **Plugins → Workspace Apps** 管理兼容的 Workspace App 包。
+## 界面结构
 
-更新或移除 Manager：
-
-```sh
-dsh plugin --profile <profile> update @tingyu9527/dsh-workspace-manager
-dsh plugin --profile <profile> remove @tingyu9527/dsh-workspace-manager
+```text
+DSH 根布局（宿主保留注册及原生界面状态）
+└─ page-app.shell 插槽
+   └─ Workspace Manager
+      ├─ 常驻最左导航（默认 166px，窄屏收缩）
+      └─ 内容区
+         ├─ 原生 DSH 完整界面（保持挂载）
+         └─ 各已访问的受管页面（保持挂载）
 ```
 
-当 GitHub 仓库已包含发布产物时，也可以直接安装：
+切换页面只改变显隐，不再把侧栏盖在原生 DSH 上，也不再因返回 DSH 而卸载所有受管页面。禁用、卸载或失去授权的受管页面仍由 Controller 正常移除。知识库等条目来自实际安装的 Workspace App，本次没有附送一个新的知识库产品。
 
-```sh
-dsh plugin --profile <profile> add github:catWine901/dsh-workspace-manager
+## 修改与使用说明
+
+完整修改、宿主路径、备份位置、部署步骤和未验证项见 [本次改动说明](docs/2026-08-28-workspace-shell-changes.md)。
+
+`src/client` 是本次客户端源码入口；`packages/ui-page-app-manager/src` 是构建脚本同步的历史目录镜像。`lib/client.js` 是已生成的客户端产物。已有 Host 管理器的 `lib/index.js` 等产物保留不变。
+
+## 构建客户端
+
+在已具备开发依赖的环境中：
+
+```powershell
+node scripts/build-client.mjs
 ```
 
-## 架构
+也可复用已有工具链，无需下载或重装 DSH：
 
-单个可安装 bundle 组合三个部分：
+```powershell
+node scripts/build-client.mjs --toolchain "<已有 DSH 源码工具链目录>"
+```
 
-- **Profile core**：负责路径、registry 解析、变更锁、事务日志和确定性 runtime layer 文档。
-- **Host Manager**：负责包校验、事务、状态投影以及经过授权的 `pageAppManager` Remote 服务。
-- **Browser Manager**：负责 Settings 界面，并通过生成的 Remote 绑定与 Host 通信；它不会运行 pnpm，也不会写 profile 文件。
+构建只更新客户端及源码镜像，不执行完整类型检查、Host 重编译或验收测试。Remote 描述符快照位于 `src/client/generated`，沿用现有 Host 协议，没有伪造激活事件。
 
-受管 Feature 位于 Feature Runtime Wrapper 下。Provider 丢失时，Feature 子树通过正常 loader 生命周期进入等待；Provider 恢复时自动重载。规范 API 见 [Workbench Contract v1](docs/workbench-contract-v1.md)。
+## RC2 宿主兼容补丁
 
-## 安全与生命周期保证
+以下目录参数是包含 `node_modules/@deepseek-ai/dsh` 的安装目录，不是 `DSH_HOME`：
 
-- 安装源以参数形式解析，不拼接 shell 命令字符串。
-- Manager 不会放宽 pnpm `allowBuilds`，也不会删除用户的 pnpm store 或源码目录。
-- 每个 profile 的变更串行执行；事务要么提交，要么恢复此前的 live layer 与文件。
-- 激活确认绑定精确 revision，并受超时限制。
-- 不同 profile 的 registry、排序、revision、包和恢复状态彼此独立。
-- 导入或依赖 Cordis 的 Workspace Feature 会被源码、manifest 和安装准入边界拒绝。
+```powershell
+node scripts/patch-host.mjs status "<DSH 安装目录>"
+node scripts/patch-host.mjs apply "<DSH 安装目录>"
+node scripts/patch-host.mjs restore "<DSH 安装目录>"
+```
 
-## 兼容性与限制
+补丁仅接受指定 RC2 版本和已核对的两个发行文件哈希；先备份再替换，不写穿 pnpm 的共享硬链接。补丁应用/恢复后需重启 DSH 并刷新浏览器。升级或重装 DSH 可能覆盖补丁，此时需要重新检查兼容性。
 
-- 1.0.1 面向公开 npm 形态的 DSH 0.1.1-rc.2 seam 包与 `@deepseek-ai/cordis` 4.0.x。
-- 明确命名的旧版 rc.2 兼容桥负责协调公开 rc.2 profile watcher 与 Manager 变更；未来 DSH Host 提供原生 `ProfileRuntime` 能力时，该桥会自动保持不激活。
-- 安装依赖 Host client-module registry，因为激活必须对精确 client graph revision 完成确认。
-- 如果包需要执行安装脚本，操作者可能需要自行配置 pnpm build allowance；Manager 不会自动授权。
-- 移除 Manager 或单个 Workspace App 时，registry 与用户数据会被保留。
+## 其他能力与限制
 
-## 仓库与发布模型
+包保留原来的 Workspace App 安装、启停、隐藏、排序、卸载、事务回滚与 Workbench Contract。浏览器不执行包管理或写 profile 文件。Manager 缺席或外壳报错时，宿主提供低优先级原生界面回退；Manager 安装/移除时不保证 React 局部状态保持，普通页面切换才保持现有挂载节点。
 
-本仓库是从 DeepSeek Harness monorepo 确定性生成的发布快照，包含规范化源码包、测试、Workbench Contract，以及发布到 npm 的预构建 `lib/` 产物。发布前必须通过 tarball 内容扫描和 fresh profile 的安装 → 启动 → 禁用 → 重新启用 → 卸载 smoke test。
+本轮只做客户端构建、JavaScript 语法检查、组件级显隐/节点保留检查和补丁哈希核对；没有运行四层验收、完整回归、真实 Feature 安装或浏览器视觉验收。
 
-## 许可证
-
-[MIT](LICENSE)
+[Workbench Contract v1](docs/workbench-contract-v1.md) · [MIT License](LICENSE)

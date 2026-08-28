@@ -1,0 +1,9 @@
+node_modules/
+artifacts/
+*.tgz
+.env
+.env.*
+!.env.example
+.npmrc
+*.log
+.workspace-manager-host-patch/

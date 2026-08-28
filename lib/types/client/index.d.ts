@@ -1025,29 +1025,6 @@ declare const en: {
   close: string;
 };
 //#endregion
-//#region lib/types/client/apply.d.ts
-/** Dictionary namespace owned by this plugin (Workspace Apps settings copy). */
-declare const NS = "settings.pageApp";
-declare module '@deepseek-ai/dsh-client-ui-slots' {
-  interface LocaleNamespaceMap {
-    /** Workspace Apps settings tab copy. */
-    'settings.pageApp': PageAppSettingsKey;
-  }
-}
-/** Required services: the slot registry and the locale face (remote/modules are read defensively). */
-declare const inject: string[];
-/**
- * Register the Workspace App shell into the built-in `root` seat and declare
- * both child seats, and contribute the Workspace Apps tab to Settings →
- * Plugins (spec §21/§22). The controller starts with the registration and
- * stops with its fiber; the built-in DSH seat mounts immediately regardless of
- * remote readiness (spec §3 guarantees the permanent fallback surface). The
- * Settings tab and the shell share one controller, so state and mutations
- * stay consistent across both surfaces.
- * @param ctx - client root context.
- */
-declare function apply(ctx: ClientContext): Promise<void>;
-//#endregion
 //#region lib/types/client/PageAppShell.d.ts
 /** The controller face the manager apply() hands to the shell registration. */
 interface PageAppShellInjected {
@@ -1071,6 +1048,27 @@ declare function PageAppShell({
   renderSlot
 }: PageAppShellProps): import("react").JSX.Element;
 //#endregion
+//#region lib/types/client/shell-registration.d.ts
+/** Dictionary namespace owned by the Workspace Apps shell and settings tab. */
+declare const NS = "settings.pageApp";
+//#endregion
+//#region lib/types/client/apply.d.ts
+declare module '@deepseek-ai/dsh-client-ui-slots' {
+  interface LocaleNamespaceMap {
+    /** Workspace Apps settings tab copy. */
+    'settings.pageApp': PageAppSettingsKey;
+  }
+}
+/** Required services: the slot registry and the locale face (remote/modules are read defensively). */
+declare const inject: string[];
+/**
+ * Select a shell registration strategy and contribute the Workspace Apps tab
+ * to Settings → Plugins. The controller starts with the registrations and
+ * stops with its fiber; Settings and the selected shell share one controller.
+ * @param ctx - client root context.
+ */
+declare function apply(ctx: ClientContext): Promise<void>;
+//#endregion
 //#region lib/types/client/PageAppRail.d.ts
 /**
  * The permanent far-left Workspace App rail (spec §2/§20): DSH / Agent plus
@@ -1093,6 +1091,8 @@ interface PageAppRailRow {
 }
 /** Injected props the shell hands to the rail. */
 interface PageAppRailInjected {
+  /** Visual density for the mounting shell; omitted keeps the full rail. */
+  readonly variant?: 'full' | 'compact';
   /** Ordered eligible rows (DSH/Agent is always rendered first, not a row). */
   readonly rows: readonly PageAppRailRow[];
   /** Active page id, or null when the built-in DSH page is active. */
@@ -1104,7 +1104,8 @@ interface PageAppRailInjected {
 declare function PageAppRail({
   rows,
   activePageId,
-  select
+  select,
+  variant
 }: PageAppRailInjected): import("react").JSX.Element;
 //#endregion
 //#region lib/types/client/PageAppSettingsTab.d.ts
@@ -1142,3 +1143,5 @@ declare function PageAppSettingsTab({
 }: PageAppSettingsTabProps): ReactNode;
 //#endregion
 export { MutableObservable, NS, PAGE_APP_DSH_PAGE, PAGE_APP_SURFACE_SLOT, PageAppActivationView, PageAppBuiltinOwner, PageAppClientSnapshot, PageAppController, PageAppControllerDeps, PageAppManagerRemoteMethods, PageAppObservable, PageAppRail, PageAppRailInjected, PageAppRailRow, PageAppRemoteEvents, PageAppRemoteResult, PageAppSettingsKey, PageAppSettingsTab, PageAppSettingsTabInjected, PageAppSettingsTabProps, PageAppShell, PageAppShellInjected, PageAppShellProps, PageAppSlotsSeam, PageAppSurfaceOwner, WORKBENCH_CLIENT_SERVICE, WorkbenchClientBridge, WorkbenchClientBridgeService, WorkbenchSurfaceRegistration, apply, en, inject, zh };
+// RC2 host wrapper owner supplied by the compatibility patch.
+declare module "@deepseek-ai/dsh-client-ui-slots" { interface SlotMap { "page-app.shell": { kind: "single"; scope: "root"; owner: { nativeSurface: import("react").ReactNode } } } }

@@ -2,15 +2,17 @@
 
 [English](README.md) | 中文
 
-Workspace Apps 客户端：keep-mounted 外壳（内置 DSH 座位加键控的受管 surface 座位）、基于生成 `pageAppManager` remote 的 React-free controller，以及 Settings → Plugins → Workspace 选项卡。内置 DSH 座位从不依赖 remote 就绪——没有生成的 remote 命名空间时外壳仍然注册，controller 降级为只读空投影，因此组合顺序永远不会阻塞 Original DSH Surface。
+Workspace Apps 客户端：Native keep-mounted 外壳（内置 DSH 座位加键控的受管 surface 座位）、由构建选择的RC2 宿主外壳适配器、基于生成 `pageAppManager` remote 的 React-free controller，以及 Settings → Plugins → Workspace 选项卡。内置 DSH 座位从不依赖 remote 就绪——没有生成的 remote 命名空间时外壳仍然注册，controller 降级为只读空投影，因此组合顺序永远不会阻塞 Original DSH Surface。
 
 ## Shell 座位
 
-Manager 的 `apply` 拥有内置 `root` 座位并声明两个子座位：单一内置 DSH 座位（`page-app.shell.builtin`）与键控的受管 surface 座位（`page-app.shell.surface`，每个 page id 一个单元）。外壳无条件挂载内置座位，并在受管 surface 激活期间隐藏（绝不卸载）它。受管包只在运行时激活后才向 surface 座位贡献；controller 的闭合授权投影（spec §7）让无关、来源错误、重复与修订不匹配的贡献保持不可见。
+在 Native 构建中，Manager 的 `apply` 拥有内置 `root` 座位并声明两个子座位：单一内置 DSH 座位（`page-app.shell.builtin`）与键控的受管 surface 座位（`page-app.shell.surface`，每个 page id 一个单元）。`PageAppShell` 无条件挂载内置座位，并在受管 surface 激活期间隐藏（绝不卸载）它；其完整最左栏使用共用响应式导航列（默认 166px）。受管包只在运行时激活后才向 surface 座位贡献；controller 的闭合授权投影（spec §7）让无关、来源错误、重复与修订不匹配的贡献保持不可见。
+
+既有的 `DSH_CLIENT_PAGE_APP_MANAGER_LEGACY_RC2` 构建标志选择 `Rc2PageAppShell`。它要求先应用明确的 RC2 宿主补丁，注册到 `page-app.shell`，并从 `nativeSurface` 接收原生 AppFrame。共用外壳真实预留导航列，普通页面切换保持原生 DSH 与已访问页面挂载；宿主保留低优先级原生界面回退。补丁部署、恢复和未验证项见仓库改动说明。
 
 ## Controller 生命周期
 
-每次 apply 一个 `PageAppController`，同时服务外壳与 Settings 选项卡，因此两个 surface 上的状态与变更保持一致。Controller 随注册启动（事件订阅、slot ledger 观察、初始快照），并随 apply fiber 停止：`controller.stop()` 取消全部订阅并立即取消每个进行中的 graph-wait interval。停止是幂等的——重复清理是 no-op。
+每次 apply 一个 `PageAppController`，同时服务所选外壳与 Settings 选项卡，因此两个 surface 上的状态与变更保持一致。Settings 与生成的 Remote 挂载仍在 `apply` 中；adapter 不改变 Host legacy bridge 或 `ProfileRuntime` 行为。Controller 随注册启动（事件订阅、slot ledger 观察、初始快照），并随 apply fiber 停止：`controller.stop()` 取消全部订阅并立即取消每个进行中的 graph-wait interval。停止是幂等的——重复清理是 no-op。
 
 ## 图收敛等待
 

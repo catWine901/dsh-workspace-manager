@@ -1,77 +1,41 @@
-# DSH Workspace Manager
+# DSH Workspace Manager — RC2 root-shell prerelease
 
 English | [中文](README.zh.md)
 
-An out-of-tree Workspace Apps control plane for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). It installs as a profile bundle and adds **Plugins → Workspace Apps** without making the built-in DSH shell depend on the manager.
-
-## What it does
-
-- Installs, enables, disables, hides, reorders, and uninstalls Workspace Apps per profile.
-- Keeps `.workspace-manager/registry.json` as the sole ownership authority.
-- Uses journaled transactions, a shared profile lock, live-tree rollback, and explicit recovery.
-- Provides Workbench Contract v1 so managed Features stay Cordis-free.
-- Preserves Native DSH when the manager is absent, disabled, reloading, or fails to render.
-- Keeps package management and profile-file writes on the Host; the browser only calls the authorized Remote surface.
+Version `1.0.1-workspace-shell.1` is a **prerelease without full acceptance**, distributed under the npm `next` tag. The Manager remains a separate package. Public DSH 0.1.1-rc.2 also requires the explicit host patch included here; installing the Manager alone on an unmodified RC2 host does not provide the new shell.
 
 ## Install
 
-Requirements: the npm release `@deepseek-ai/dsh@0.1.1-rc.2`, Node.js 20 or newer, and pnpm 11.7.0 on `PATH`. This package uses seams introduced after 0.1.0-rc.6 and is not compatible with the older 0.1.0-rc.6 public release.
-
-Version 1.0.1 fixes external-consumer installation: it inlines the unpublished `dsh-page-app-profile` implementation, so an ordinary npm DSH user does not require a DSH source build.
+With DSH stopped, apply the host patch below using a local copy of this repository or an extracted npm package, then install the Manager into the intended DSH profile:
 
 ```sh
-dsh plugin --profile web add @tingyu9527/dsh-workspace-manager
-dsh web
+dsh plugin --profile web add @tingyu9527/dsh-workspace-manager@1.0.1-workspace-shell.1
 ```
 
-For a reproducible install, append the optional `@1.0.1` version pin to the package name.
+Use the same `DSH_HOME` as your normal web instance. Restart DSH afterwards. The package does not automatically modify the host on installation. Existing stable users remain on `latest` (`1.0.1`).
 
-Open **Plugins → Workspace Apps** to manage compatible Workspace App packages.
+## Composition
 
-To update or remove the manager:
+The host retains its root registration and original AppFrame. A new `page-app.shell` slot passes that original element to the Manager. The Manager renders a permanent 166px navigation column and a sibling content area containing Native DSH and visited managed pages. Navigation toggles visibility without unmounting those pages. Disabled, uninstalled or ineligible pages are still evicted normally.
+
+This does not embed an iframe, move existing DOM nodes, rebuild DSH chat, or ship a new knowledge-base application. Entries come from installed Workspace Apps.
+
+## Build and host patch
 
 ```sh
-dsh plugin --profile <profile> update @tingyu9527/dsh-workspace-manager
-dsh plugin --profile <profile> remove @tingyu9527/dsh-workspace-manager
+node scripts/build-client.mjs
+node scripts/build-client.mjs --toolchain "<existing DSH source toolchain>"
+node scripts/patch-host.mjs status "<DSH installation directory>"
+node scripts/patch-host.mjs apply "<DSH installation directory>"
+node scripts/patch-host.mjs restore "<DSH installation directory>"
 ```
 
-The repository can also be installed directly when it contains the release artifacts:
+The client builder reads this directory's `src/client`, updates `lib/client.js`, and synchronizes the historical `packages/ui-page-app-manager/src` mirror. Existing Host Manager artifacts remain unchanged. Build dependencies can come from an existing toolchain; no new DSH download is needed.
 
-```sh
-dsh plugin --profile <profile> add github:catWine901/dsh-workspace-manager
-```
+The patch accepts only the pinned RC2 version and two known artifact hashes, backs up originals, and replaces files atomically without writing through pnpm hardlinks. It adds a host shell slot with a Native DSH fallback and forwards the two Manager lifecycle events. Restart DSH and refresh the browser after applying or restoring it. DSH reinstalls/upgrades may replace the patched files.
 
-## Architecture
+## Status
 
-The package combines three faces behind one installable bundle:
+Only compilation, JavaScript syntax, component-level visibility/DOM retention, and patch hash checks were performed. No four-layer acceptance, full regression, real Feature installation, or browser visual acceptance was run. Shell installation/removal may remount Native DSH; the keep-mounted guarantee concerns ordinary page navigation.
 
-- **Profile core** owns paths, registry parsing, the mutation lock, journals, and deterministic runtime-layer documents.
-- **Host manager** validates packages, runs transactions, projects state, and exposes the authorized `pageAppManager` Remote service.
-- **Browser manager** renders settings and talks to the Host through generated Remote bindings; it never runs pnpm or writes profile files.
-
-Managed Features run below a Feature Runtime Wrapper. Provider loss parks the Feature subtree through the normal loader lifecycle; provider return reloads it. The normative API is documented in [Workbench Contract v1](docs/workbench-contract-v1.md).
-
-## Security and lifecycle guarantees
-
-- Install sources are parsed as arguments; no shell command string is assembled.
-- The manager never broadens pnpm `allowBuilds` and never deletes a user's pnpm store or source directory.
-- Mutations are serialized per profile and either commit or restore the prior live layer and files.
-- Activation acknowledgements are revision-bound and timeout-bounded.
-- Profiles keep independent registries, orders, revisions, packages, and recovery state.
-- A Workspace Feature that imports or depends on Cordis is rejected by the source, manifest, and admission boundaries.
-
-## Compatibility and limits
-
-- This 1.0.1 release targets the public npm-form DSH 0.1.1-rc.2 seam packages and `@deepseek-ai/cordis` 4.0.x.
-- Its explicitly named legacy rc.2 compatibility bridge coordinates the public rc.2 profile watcher with manager changes. On a future DSH Host that provides the native `ProfileRuntime` capability, the bridge automatically stays inactive.
-- Installation requires the Host client-module registry because activation must be acknowledged against an exact client-graph revision.
-- Packages that need install scripts may require an operator-managed pnpm build allowance; the manager will not grant it automatically.
-- Registry and user data are retained when the manager or an individual Workspace App is removed.
-
-## Repository and release model
-
-This repository is a deterministic distribution snapshot generated from the DeepSeek Harness monorepo. It contains the normalized source packages, tests, Workbench Contract, and prebuilt `lib/` artifacts shipped to npm. A release is accepted only after tarball content scanning and a fresh-profile install → start → disable → re-enable → uninstall smoke test.
-
-## License
-
-[MIT](LICENSE)
+See [change report and deployment instructions](docs/2026-08-28-workspace-shell-changes.md), [Workbench Contract v1](docs/workbench-contract-v1.md), and [MIT license](LICENSE).

@@ -60,6 +60,38 @@ function installSource(): PageAppInstallSource {
 }
 
 describe('state machine', () => {
+  it('keeps visited pages after DSH selection switches away and back', async () => {
+    const remote = new FakeRemote()
+    const slots = new FakeSlots()
+    remote.onList = () => Promise.resolve(ok(fakeSnapshot([
+      fakeRow({ packageName: '@scope/a', pageId: 'page-a', enabled: true }),
+    ])))
+    slots.setEntries([fakeEntry('page-a', '@scope/a')])
+    const { controller, dispose } = await harness(remote, slots)
+
+    controller.select(null)
+    expect(controller.observable.getSnapshot()).toMatchObject({
+      activePageId: null,
+      visitedPageIds: [],
+    })
+    controller.select('page-a')
+    expect(controller.observable.getSnapshot()).toMatchObject({
+      activePageId: 'page-a',
+      visitedPageIds: ['page-a'],
+    })
+    controller.select(null)
+    expect(controller.observable.getSnapshot()).toMatchObject({
+      activePageId: null,
+      visitedPageIds: ['page-a'],
+    })
+    controller.select('page-a')
+    expect(controller.observable.getSnapshot()).toMatchObject({
+      activePageId: 'page-a',
+      visitedPageIds: ['page-a'],
+    })
+    dispose()
+  })
+
   it('records first visit and keeps a stable first-visit order', async () => {
     const remote = new FakeRemote()
     const slots = new FakeSlots()

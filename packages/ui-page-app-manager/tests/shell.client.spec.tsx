@@ -12,6 +12,7 @@ import { useSyncExternalStore } from 'react'
 import type { PageAppClientSnapshot } from '../src/client/controller.ts'
 import type { StoredEntry } from '@deepseek-ai/dsh-client-ui-slots'
 import { PageAppShell, type PageAppShellProps } from '../src/client/PageAppShell.tsx'
+import { Rc2PageAppShell, type Rc2PageAppShellProps } from '../src/client/Rc2PageAppShell.tsx'
 import { MutableObservable } from '../src/client/stores.ts'
 
 /** A minimal StoredEntry fixture. */
@@ -64,6 +65,30 @@ function mountShell(store: MutableObservable<PageAppClientSnapshot>) {
   return { select, uninstall, t, slotCalls, ...utils }
 }
 
+/** Render the public rc.2 wrapper shell against a controller-like observable. */
+function mountRc2Shell(store: MutableObservable<PageAppClientSnapshot>) {
+  const select = vi.fn()
+  const uninstall = vi.fn()
+  const t = ((key: string) => ({
+    surfaceCrashed: 'This page failed',
+    retry: 'Retry',
+    uninstall: 'Uninstall',
+  })[key] ?? key) as Rc2PageAppShellProps['t']
+  const renderSlot = ((key: string, _owner: object, opts?: { entryKey?: string }) => (
+    <div data-testid={`slot-${key}-${opts?.entryKey ?? 'builtin'}`} />
+  )) as Rc2PageAppShellProps['renderSlot']
+  const props: Rc2PageAppShellProps = {
+    nativeSurface: <input data-testid="native-dsh" defaultValue="native draft" />,
+    usePageApp: (sel: (s: PageAppClientSnapshot) => unknown) => sel(useSyncExternalStore(store.subscribe, store.getSnapshot)),
+    select,
+    uninstall,
+    t,
+    renderSlot,
+  } as Rc2PageAppShellProps
+  const utils = render(<Rc2PageAppShell {...props} />)
+  return { select, uninstall, ...utils }
+}
+
 beforeEach(() => {
   vi.useRealTimers()
 })
@@ -73,6 +98,12 @@ afterEach(() => {
 })
 
 describe('PageAppShell keep-mounted behavior', () => {
+  it('renders the native shell rail in the full variant', () => {
+    const { store } = makeStore(snapshot())
+    const { container } = mountShell(store)
+    expect(container.querySelector('[data-page-app-rail]')?.getAttribute('data-variant')).toBe('full')
+  })
+
   it('mounts the built-in DSH surface immediately and keeps it mounted', () => {
     const { store } = makeStore(snapshot())
     const { getByTestId, queryByTestId } = mountShell(store)
@@ -263,5 +294,78 @@ describe('PageAppShell keep-mounted behavior', () => {
       .map(el => el.textContent ?? '')
     expect(railRows).toEqual(['DSH / Agent'])
     expect(container.querySelector('[data-page-id="dsh"]')).not.toBeNull()
+  })
+})
+
+describe('Rc2PageAppShell wrapper behavior', () => {
+  it('renders the rc2 wrapper rail in the full variant', () => {
+    const { store } = makeStore(snapshot())
+    const { container } = mountRc2Shell(store)
+    expect(container.querySelector('[data-page-app-rail]')?.getAttribute('data-variant')).toBe('full')
+  })
+
+  it('keeps the rail and Native DSH inside the permanent content host', () => {
+    const { store } = makeStore(snapshot())
+    const { container } = mountRc2Shell(store)
+    const shell = container.querySelector('[data-page-app-shell]')
+    expect(shell).not.toBeNull()
+    expect(container.querySelector('[data-page-id="dsh"]')?.hasAttribute('hidden')).toBe(false)
+    expect(container.querySelector('[data-page-app-rail]')).not.toBeNull()
+    expect(container.querySelector('main')).not.toBeNull()
+  })
+
+  it('shows the selected managed surface and hides other visited eligible surfaces', () => {
+    const { store } = makeStore(snapshot({
+      registry: {
+        profile: { name: 'p', directory: 'd' },
+        revision: 1,
+        entries: [
+          { packageName: '@scope/a', page: { id: 'page-a', name: 'A', description: '', defaultOrder: 1, rootEntryId: 'r' }, order: 1, enabled: true, hidden: false, installedAt: '', updatedAt: '', source: { kind: 'registry', display: 'x' }, resolvedVersion: '1.0.0', health: 'ready' },
+          { packageName: '@scope/b', page: { id: 'page-b', name: 'B', description: '', defaultOrder: 2, rootEntryId: 'r' }, order: 2, enabled: true, hidden: false, installedAt: '', updatedAt: '', source: { kind: 'registry', display: 'x' }, resolvedVersion: '1.0.0', health: 'ready' },
+        ],
+        operation: null, recovery: null,
+      },
+      eligible: new Map([
+        ['page-a', entry('page-a', '@scope/a')],
+        ['page-b', entry('page-b', '@scope/b')],
+      ]),
+      activePageId: 'page-a',
+      visitedPageIds: ['page-a', 'page-b'],
+    }))
+    const { container, getByTestId } = mountRc2Shell(store)
+    expect(container.querySelector('[data-page-id="dsh"]')?.hasAttribute('hidden')).toBe(true)
+    const pageA = container.querySelector('[data-page-id="page-a"]') as HTMLElement
+    const pageB = container.querySelector('[data-page-id="page-b"]') as HTMLElement
+    expect(pageA.hasAttribute('hidden')).toBe(false)
+    expect(pageB.hasAttribute('hidden')).toBe(true)
+    expect(getByTestId('slot-page-app.shell.surface-page-a')).toBeTruthy()
+    expect(getByTestId('slot-page-app.shell.surface-page-b')).toBeTruthy()
+  })
+
+  it('evicts a disabled or ineligible managed surface from the wrapper host', () => {
+    const { store } = makeStore(snapshot({
+      eligible: new Map([['page-a', entry('page-a', '@scope/a')]]),
+      activePageId: 'page-a',
+      visitedPageIds: ['page-a'],
+    }))
+    const { container, queryByTestId } = mountRc2Shell(store)
+    expect(queryByTestId('slot-page-app.shell.surface-page-a')).toBeTruthy()
+    act(() => { store.set(snapshot()) })
+    expect(queryByTestId('slot-page-app.shell.surface-page-a')).toBeNull()
+    expect(container.querySelector('main')).not.toBeNull()
+  })
+
+  it('offers retry and uninstall after a managed surface fails', () => {
+    const { store } = makeStore(snapshot({
+      eligible: new Map([['page-a', entry('page-a', '@scope/a')]]),
+      activePageId: 'page-a',
+      visitedPageIds: ['page-a'],
+      failedPageIds: ['page-a'],
+    }))
+    const { getByRole, select, uninstall } = mountRc2Shell(store)
+    act(() => { getByRole('button', { name: 'Retry' }).click() })
+    expect(select).toHaveBeenCalledWith('page-a')
+    act(() => { getByRole('button', { name: 'Uninstall' }).click() })
+    expect(uninstall).toHaveBeenCalledWith('page-a')
   })
 })
