@@ -1664,3 +1664,18 @@ var ProfileRuntime = class extends Service {
 };
 //#endregion
 export { readPageAppRegistry as C, parsePageAppSourceDisplay as D, parsePageAppManifest as E, resolvePageAppProfilePaths as O, parsePageAppRegistry as S, assertPageAppSourceNoCredentials as T, readPageAppJournal as _, composeProfilePatches as a, writePageAppJournal as b, managerWrapperResolvable as c, readManagerLayerPatches as d, loadOptionalPatches as f, parsePageAppJournal as g, advancePageAppJournalPhase as h, canonicalManagedRootHash as i, prepareManagerRuntimeLayer as l, withPageAppProfileLock as m, ProfileRuntime as n, managedRootWrapperId as o, loadOverlayPatches as p, WORKBENCH_RUNTIME_SERVICE as r, managedRootWrapperRow as s, PROFILE_RUNTIME_SERVICE as t, profileRuntimeControl as u, removePageAppJournal as v, writePageAppRegistry as w, renderPageAppRuntimeLayer as x, snapshotPageAppJournalFiles as y };
+export {
+	PROFILE_RUNTIME_SERVICE,
+	WORKBENCH_RUNTIME_SERVICE,
+	ProfileRuntime,
+	canonicalManagedRootHash,
+	composeProfilePatches,
+	loadOptionalPatches,
+	loadOverlayPatches,
+	managedRootWrapperId,
+	managedRootWrapperRow,
+	managerWrapperResolvable,
+	prepareManagerRuntimeLayer,
+	profileRuntimeControl,
+	readManagerLayerPatches,
+};

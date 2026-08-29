@@ -9,8 +9,7 @@
  */
 
 import type { ReactNode } from 'react'
-import type { Translate } from '@deepseek-ai/dsh-client-ui-slots'
-import type { PageAppSettingsKey } from './locales.ts'
+import type { PageAppSettingsKey, Translate } from './locales.ts'
 import css from './PageAppFailureSurface.module.css'
 
 /** Props of the failure face: identity, copy, and the two recovery actions. */

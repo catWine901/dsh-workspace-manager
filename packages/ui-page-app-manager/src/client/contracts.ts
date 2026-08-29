@@ -5,7 +5,7 @@
  * @module @deepseek-ai/dsh-client-ui-page-app-manager/client/contracts
  */
 
-import type { StoredEntry } from '@deepseek-ai/dsh-client-ui-slots'
+import type { HostContribution, WorkspaceHostDescriptor } from '../../host-bridge/index.ts'
 import type {
   PageAppActivationRequestedEvent, PageAppClientInstanceId, PageAppInstallSource,
   PageAppManagerSnapshot, PageAppTransactionId,
@@ -51,7 +51,7 @@ export interface PageAppRemoteEvents {
 /** The slot ledger surface the controller projects eligible contributions from. */
 export interface PageAppSlotsSeam {
   /** Live entries of one slot key. */
-  entries(key: string): readonly StoredEntry[]
+  entries(key: string): readonly HostContribution[]
   /** Subscribe to one slot key's registration changes. */
   subscribe(key: string, fn: () => void): () => void
   /** Observe every slot mutation (any key). */

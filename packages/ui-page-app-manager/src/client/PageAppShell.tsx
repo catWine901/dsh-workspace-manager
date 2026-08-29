@@ -18,9 +18,9 @@ import type {
 } from '@deepseek-ai/dsh-client-ui-slots'
 import type { PageAppClientSnapshot } from './controller.ts'
 import type { PageAppObservable } from './stores.ts'
-import type { PageAppRailInjected } from './PageAppRail.tsx'
 import { PageAppRail } from './PageAppRail.tsx'
 import { PageAppFailureSurface } from './PageAppFailureSurface.tsx'
+import { projectPageAppShell } from './page-app-shell-projection.ts'
 import css from './PageAppShell.module.css'
 
 /** The controller face the manager apply() hands to the shell registration. */
@@ -55,41 +55,42 @@ function SurfaceFrame(props: { pageId: string; hidden: boolean; children: ReactN
 
 /** The root Workspace App shell (see module doc). */
 export function PageAppShell({ usePageApp, select, uninstall, t, renderSlot }: PageAppShellProps) {
+  return (
+    <PageAppShellView
+      usePageApp={usePageApp}
+      select={select}
+      uninstall={uninstall}
+      t={t}
+      nativeSurface={renderSlot('page-app.shell.builtin', {})}
+      renderSurface={pageId => renderSlot('page-app.shell.surface', {}, { entryKey: pageId })}
+    />
+  )
+}
+
+/** Common full-window layout for native child-seat and RC2 wrapper integrations. */
+export interface PageAppShellViewProps extends Pick<PageAppShellProps, 'usePageApp' | 'select' | 'uninstall' | 't'> {
+  /** Host-rendered original DSH element, never copied or reconstructed by the Manager. */
+  nativeSurface: ReactNode
+  /** Render a managed page through the registering plugin's authorized slot binding. */
+  renderSurface: (pageId: string) => ReactNode
+}
+
+/** Permanent navigation and mutually exclusive, keep-mounted full-page surfaces. */
+export function PageAppShellView({ usePageApp, select, uninstall, t, nativeSurface, renderSurface }: PageAppShellViewProps) {
   const snapshot = usePageApp((state: PageAppClientSnapshot) => state)
   const activePageId = snapshot.activePageId
-  const eligibleIds = useMemo(
-    () => new Set(snapshot.eligible.keys()),
-    [snapshot.eligible],
+  const { mountedIds, failedIds, railInjected } = useMemo(
+    () => projectPageAppShell(snapshot, select),
+    [snapshot, select],
   )
-  // Visited pages that are still eligible stay mounted; an id the controller
-  // evicted (disable/uninstall) drops out of the snapshot and unmounts here.
-  const mountedIds = snapshot.visitedPageIds.filter(id => eligibleIds.has(id))
-  // An abdicated surface shows the manager-owned failure face in place of the
-  // crashed cell; the keyed wrapper stays mounted so a retry remounts in place.
-  const failedIds = useMemo(() => new Set(snapshot.failedPageIds), [snapshot.failedPageIds])
-
-  const railInjected: PageAppRailInjected = useMemo(() => ({
-    rows: snapshot.registry === null
-      ? []
-      : snapshot.registry.entries
-        .filter(row => row.enabled && !row.hidden && eligibleIds.has(row.page.id))
-        .map(row => ({
-          pageId: row.page.id,
-          label: row.page.name,
-          order: row.order,
-        }))
-        .sort((a, b) => a.order - b.order),
-    activePageId,
-    select,
-  }), [eligibleIds, snapshot.registry, activePageId, select])
 
   return (
     <div className={css.shell} data-page-app-shell>
-      <PageAppRail {...railInjected} />
+      <PageAppRail {...railInjected} variant="full" />
       <main className={css.host}>
         {/* Original DSH: always mounted, hidden only while a managed page is active. */}
         <SurfaceFrame pageId="dsh" hidden={activePageId !== null}>
-          {renderSlot('page-app.shell.builtin', {})}
+          {nativeSurface}
         </SurfaceFrame>
         {mountedIds.map(pageId => (
           <SurfaceFrame key={pageId} pageId={pageId} hidden={activePageId !== pageId}>
@@ -102,7 +103,7 @@ export function PageAppShell({ usePageApp, select, uninstall, t, renderSlot }: P
                   onUninstall={() => { uninstall(pageId) }}
                 />
               )
-              : renderSlot('page-app.shell.surface', {}, { entryKey: pageId })}
+              : renderSurface(pageId)}
           </SurfaceFrame>
         ))}
       </main>

@@ -13,7 +13,7 @@ import {
   assertPageAppSourceNoCredentials,
   parsePageAppSourceDisplay,
   type PageAppSourceKind,
-} from '@deepseek-ai/dsh-page-app-profile'
+} from '../profile/index.ts'
 import type { PageAppInstallSource } from './types.ts'
 
 /** Tarball file-name suffixes pnpm can install from a local archive. */

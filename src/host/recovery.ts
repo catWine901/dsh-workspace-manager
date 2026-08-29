@@ -22,7 +22,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { ProfileRuntime } from '@deepseek-ai/dsh-app-boot/profile-runtime-bridge'
+import type { ProfileRuntime } from '../adapters/dsh/rc2/profile-runtime-bridge.mjs'
 import {
   parsePageAppRegistry,
   readPageAppJournal,
@@ -31,7 +31,7 @@ import {
   withPageAppProfileLock,
   type PageAppJournalV1,
   type PageAppRegistryV1,
-} from '@deepseek-ai/dsh-page-app-profile'
+} from '../profile/index.ts'
 import type { PageAppPackageExecutor } from './executor.ts'
 import { derivePageAppExpectedRoots } from './transaction.ts'
 

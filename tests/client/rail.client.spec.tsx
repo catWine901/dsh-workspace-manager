@@ -43,6 +43,16 @@ describe('PageAppRail', () => {
     expect(labels).toEqual(['DSH / Agent', 'Script', 'Storyboard'])
   })
 
+  it('defaults to the full rail variant', () => {
+    const { container } = mountRail()
+    expect(container.querySelector('[data-page-app-rail]')?.getAttribute('data-variant')).toBe('full')
+  })
+
+  it('marks an explicitly requested compact rail variant', () => {
+    const { container } = mountRail({ variant: 'compact' })
+    expect(container.querySelector('[data-page-app-rail]')?.getAttribute('data-variant')).toBe('compact')
+  })
+
   it('marks the active page with aria-current and focuses it initially', () => {
     const { getByRole } = mountRail({ activePageId: 'page-b' })
     const storyboard = getByRole('button', { name: 'Storyboard' })
@@ -67,6 +77,19 @@ describe('PageAppRail', () => {
     const { select, getByRole } = mountRail({ activePageId: null })
     fireEvent.click(getByRole('button', { name: 'Script' }))
     expect(select).toHaveBeenCalledWith('page-a')
+  })
+
+  it('keeps compact rail selection and keyboard navigation equivalent to full', () => {
+    const { select, getByRole, container } = mountRail({ activePageId: 'page-a', variant: 'compact' })
+    const script = getByRole('button', { name: 'Script' })
+    act(() => { script.focus() })
+    const rail = container.querySelector('[data-page-app-rail]') as HTMLElement
+    fireEvent.keyDown(rail, { key: 'ArrowDown' })
+    expect(document.activeElement?.textContent).toBe('Storyboard')
+    fireEvent.click(getByRole('button', { name: 'DSH / Agent' }))
+    expect(select).toHaveBeenCalledWith(null)
+    expect(script.getAttribute('aria-current')).toBe('page')
+    expect(script.getAttribute('tabindex')).toBe('0')
   })
 
   it('supports ArrowDown/ArrowUp/Home/End roving-tabindex navigation', () => {

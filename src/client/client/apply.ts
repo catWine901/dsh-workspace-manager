@@ -1,14 +1,12 @@
 /**
- * Workspace App shell registration: the manager owns the built-in `root` seat
- * and declares both child seats — the built-in DSH seat (`page-app.shell.
- * builtin`) and the keyed managed-surface seat (`page-app.shell.surface`).
+ * Workspace App registration: a verified Host descriptor selects an exact
+ * adapter before the Manager takes over the root. The controller is shared
+ * with Settings regardless of the selected shell strategy.
  * The controller is constructed with the real generated `pageAppManager`
  * remote namespace, a slots-seam over the runtime ledger, a per-controller
  * opaque `crypto.randomUUID()` client instance, and an HMR graph-convergence
- * wait. The built-in seat never depends on remote readiness: without the
- * remote namespace the shell still registers (the controller degrades to a
- * read-only empty projection and DSH stays mounted), so composition ordering
- * cannot block the Original DSH Surface.
+ * wait. Root takeover fails closed until the Remote and Host descriptor are
+ * verified, leaving the original DSH root registration untouched.
  * @module @deepseek-ai/dsh-client-ui-page-app-manager/client/apply
  */
 
@@ -28,14 +26,17 @@ import { PAGE_APP_SURFACE_SLOT } from './contracts.ts'
 import type {
   PageAppManagerRemoteMethods, PageAppRemoteEvents, PageAppRemoteResult, PageAppSlotsSeam,
 } from './contracts.ts'
-import { PageAppShell, type PageAppShellInjected } from './PageAppShell.tsx'
 import { PageAppSettingsTab, type PageAppSettingsTabInjected } from './PageAppSettingsTab.tsx'
+import { NS, PageAppShell, shellInjected, type PageAppShellDisposer } from './shell-registration.ts'
 import { parsePageAppInstallSourceClient } from './source.ts'
 import { en, zh, type PageAppSettingsKey } from './locales.ts'
 import { WorkbenchClientBridgeService } from './workbench.ts'
+import { auditHostDescriptor } from '../../host-bridge/index.ts'
+import { selectDshHostAdapter } from '../../adapters/dsh/registry.ts'
+import { registerRc2WorkspaceRoot } from '../../adapters/dsh/rc2/client.tsx'
 
 /** Dictionary namespace owned by this plugin (Workspace Apps settings copy). */
-export const NS = 'settings.pageApp'
+export { NS } from './shell-registration.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -46,6 +47,10 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 
 /** Empty remote projection when the generated namespace is not mounted yet. */
 const EMPTY_SNAPSHOT: PageAppManagerSnapshot = Object.freeze({
+  host: Object.freeze({
+    hostName: 'dsh', hostVersion: 'unsupported', adapterId: 'none', adapterVersion: '0.0.0', bridgeVersion: 1,
+    integrationMode: 'layout-replacement', capabilities: Object.freeze([]),
+  }),
   profile: Object.freeze({ name: '', directory: '' }),
   revision: 0,
   entries: Object.freeze([]),
@@ -155,17 +160,6 @@ function createController(ctx: ClientContext): PageAppController {
   return new PageAppController(deps)
 }
 
-/** The shell's inject face: the controller observable plus the recovery actions. */
-function shellInjected(controller: PageAppController): PageAppShellInjected {
-  return {
-    hooks: { pageApp: controller.observable },
-    select: (pageId) => { controller.select(pageId) },
-    // The failure surface's uninstall runs the same flow as Settings (no
-    // cancellation UI on the shell; a fresh signal keeps the call valid).
-    uninstall: (pageId) => { void controller.uninstall(pageId, new AbortController().signal) },
-  }
-}
-
 /** The Settings tab's inject face: the controller observable plus mutations. */
 function settingsInjected(controller: PageAppController): PageAppSettingsTabInjected {
   return {
@@ -182,33 +176,62 @@ function settingsInjected(controller: PageAppController): PageAppSettingsTabInje
 /** Required services: the slot registry and the locale face (remote/modules are read defensively). */
 export const inject = ['slots', 'locale']
 
-// The public rc.2 shell predates the priority-1/child-seat handoff. Its
-// extracted manager build contributes Settings only so Native DSH keeps the
-// sole root registration. Remove with the pinned rc.2 compatibility build.
-function isLegacyRc2Client(): boolean {
-  return process.env.DSH_CLIENT_PAGE_APP_MANAGER_LEGACY_RC2 === 'true'
+// The published client is deliberately pinned to the independently versioned RC2 adapter.
+function isRc2AdapterClient(): boolean {
+  return process.env.DSH_CLIENT_PAGE_APP_MANAGER_RC2_ADAPTER === 'true'
+}
+
+/** Register the Native DSH root shell and its managed child seats. */
+function registerNativePageAppShell(
+  ctx: ClientContext,
+  controller: PageAppController,
+): PageAppShellDisposer {
+  return ctx.slots.register({
+    name: 'root',
+    children: {
+      'page-app.shell.builtin': {
+        kind: 'single',
+        scope: 'root',
+      },
+      'page-app.shell.surface': {
+        kind: 'keyed',
+        scope: 'root',
+      },
+    },
+    locale: NS,
+    inject: () => shellInjected(controller),
+  }, PageAppShell)
 }
 
 /**
- * Register the Workspace App shell into the built-in `root` seat and declare
- * both child seats, and contribute the Workspace Apps tab to Settings →
- * Plugins (spec §21/§22). The controller starts with the registration and
- * stops with its fiber; the built-in DSH seat mounts immediately regardless of
- * remote readiness (spec §3 guarantees the permanent fallback surface). The
- * Settings tab and the shell share one controller, so state and mutations
- * stay consistent across both surfaces.
+ * Select a shell registration strategy and contribute the Workspace Apps tab
+ * to Settings → Plugins. The controller starts with the registrations and
+ * stops with its fiber; Settings and the selected shell share one controller.
  * @param ctx - client root context.
  */
 export async function apply(ctx: ClientContext): Promise<void> {
   // Public rc.2's static api-remotes roster predates this manager. Its generic
   // gateway already exposes the public contribution seam, so the extracted
   // client mounts only its own generated descriptor before reading the service.
-  let disposeLegacyRemote: (() => Promise<void>) | undefined
-  if (isLegacyRc2Client()) {
+  let disposeAdapterRemote: (() => Promise<void>) | undefined
+  if (isRc2AdapterClient()) {
     const remote = ctx.get('remote')
-    if (remote === undefined) throw new Error('legacy rc2 manager client requires the Remote gateway')
-    disposeLegacyRemote = await remote.$mount(pageAppManagerRemote)
+    if (remote === undefined) throw new Error('RC2 Host Adapter requires the Remote gateway')
+    disposeAdapterRemote = await remote.$mount(pageAppManagerRemote)
   }
+  const verifiedRemote = buildRemote(ctx)
+  if (verifiedRemote === null) {
+    await disposeAdapterRemote?.()
+    throw new Error('Workspace Manager failed closed before root takeover: pageAppManager Remote is unavailable')
+  }
+  const initial = await verifiedRemote.list()
+  if (!initial.ok) {
+    await disposeAdapterRemote?.()
+    throw new Error(`Workspace Manager failed closed before root takeover: ${initial.error.code}: ${initial.error.message}`)
+  }
+  const selectedAdapter = selectDshHostAdapter(initial.value.host)
+  const audit = auditHostDescriptor(initial.value.host)
+  console.info('[workspace-manager] DSH Host Adapter selected', audit)
   // The manager owns the service provider; Cordis binds each getter access to
   // the Feature caller, so a Feature receives the narrow workbench contract
   // instead of the raw slot ledger.
@@ -217,6 +240,9 @@ export async function apply(ctx: ClientContext): Promise<void> {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-page-app-manager: dictionaries')
   ctx.effect(() => {
     const stopController = controller.start()
+    const disposeShell = selectedAdapter.id === 'dsh-0.1.1-rc.2-layout-replacement'
+      ? registerRc2WorkspaceRoot(ctx, controller, initial.value.host)
+      : registerNativePageAppShell(ctx, controller)
     const disposers = [
       // One entry-error subscription per fiber: an abdicating managed surface
       // is recorded on the controller (the shell swaps in the failure face);
@@ -227,15 +253,7 @@ export async function apply(ctx: ClientContext): Promise<void> {
           controller.recordEntryError(entry.options.key)
         }
       }),
-      ...(isLegacyRc2Client() ? [] : [ctx.slots.register({
-        name: 'root',
-        children: {
-          'page-app.shell.builtin': { kind: 'single', scope: 'root' },
-          'page-app.shell.surface': { kind: 'keyed', scope: 'root' },
-        },
-        locale: NS,
-        inject: () => shellInjected(controller),
-      }, PageAppShell)]),
+      disposeShell,
       // The Workspace tab registers after the read-only `all` tab (order 10).
       ctx.slots.inject('settings.plugins.tab', () => ctx.slots.register({
         name: 'settings.plugins.tab',
@@ -249,7 +267,7 @@ export async function apply(ctx: ClientContext): Promise<void> {
     return async () => {
       for (const dispose of disposers.reverse()) dispose()
       stopController()
-      await disposeLegacyRemote?.()
+      await disposeAdapterRemote?.()
     }
   }, 'ui-page-app-manager: shell + seats + settings tab')
 }

@@ -2,15 +2,17 @@
 
 English | [中文](README.zh.md)
 
-Workspace Apps client: the keep-mounted shell (built-in DSH seat plus the keyed managed-surface seat), the React-free controller over the generated `pageAppManager` remote, and the Settings → Plugins → Workspace tab. The built-in DSH seat never depends on remote readiness — without the generated remote namespace the shell still registers and the controller degrades to a read-only empty projection, so composition ordering cannot block the Original DSH Surface.
+Workspace Apps client: the Native keep-mounted shell (built-in DSH seat plus the keyed managed-surface seat), the build-selected RC2 host-wrapper adapter, the React-free controller over the generated `pageAppManager` remote, and the Settings → Plugins → Workspace tab. The built-in DSH seat never depends on remote readiness — without the generated remote namespace the shell still registers and the controller degrades to a read-only empty projection, so composition ordering cannot block the Original DSH Surface.
 
 ## Shell seats
 
-The manager's `apply` owns the built-in `root` seat and declares both child seats: the single built-in DSH seat (`page-app.shell.builtin`) and the keyed managed-surface seat (`page-app.shell.surface`, one cell per page id). The shell mounts the built-in seat unconditionally and hides (never unmounts) it while a managed surface is active. Managed packages contribute into the surface seat only after runtime activation; the controller's closed authorization projection (spec §7) keeps unrelated, wrong-provenance, duplicate, and mismatched-revision contributions invisible.
+On Native builds, the manager's `apply` owns the built-in `root` seat and declares both child seats: the single built-in DSH seat (`page-app.shell.builtin`) and the keyed managed-surface seat (`page-app.shell.surface`, one cell per page id). `PageAppShell` mounts the built-in seat unconditionally and hides (never unmounts) it while a managed surface is active; its full rail remains 200px wide. Managed packages contribute into the surface seat only after runtime activation; the controller's closed authorization projection (spec §7) keeps unrelated, wrong-provenance, duplicate, and mismatched-revision contributions invisible.
+
+The existing `DSH_CLIENT_PAGE_APP_MANAGER_LEGACY_RC2` build flag selects `Rc2PageAppShell`. It requires the explicit RC2 host patch, registers into `page-app.shell`, and receives the original AppFrame through `nativeSurface`. The full-width shared shell reserves a navigation column and retains native/visited managed pages across navigation. The host keeps a lower-priority Native DSH fallback. See the repository change report for patch installation, rollback, and unverified behavior.
 
 ## Controller lifecycle
 
-One `PageAppController` per apply serves both the shell and the Settings tab, so state and mutations stay consistent across both surfaces. The controller starts with the registration (event subscriptions, slot-ledger observation, initial snapshot) and stops with the apply fiber: `controller.stop()` unsubscribes everything and immediately cancels every pending graph-wait interval. Stop is idempotent — repeated cleanup is a no-op.
+One `PageAppController` per apply serves the selected shell and the Settings tab, so state and mutations stay consistent across both surfaces. Settings and generated Remote mounting remain in `apply`; the adapter does not change Host legacy-bridge or `ProfileRuntime` behavior. The controller starts with the registration (event subscriptions, slot-ledger observation, initial snapshot) and stops with the apply fiber: `controller.stop()` unsubscribes everything and immediately cancels every pending graph-wait interval. Stop is idempotent — repeated cleanup is a no-op.
 
 ## Graph convergence wait
 

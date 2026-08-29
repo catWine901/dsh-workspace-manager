@@ -110,6 +110,8 @@ interface PageAppRecoveryView {
 }
 /** Immutable projection of the whole managed set for one profile. */
 interface PageAppManagerSnapshot {
+  /** Verified DSH/Adapter identity; clients fail closed before root takeover without it. */
+  readonly host: import("./host-bridge.js").WorkspaceHostDescriptor;
   /** The immutable active-profile identity. */
   readonly profile: PageAppProfileIdentity;
   /** Registry revision (0 when no registry has been published). */

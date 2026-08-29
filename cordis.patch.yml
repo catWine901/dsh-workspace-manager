@@ -1,6 +1,14 @@
+# RC2 has no public Root Shell seam. Disable only its layout plugin through the
+# supported composition layer; uninstalling this package removes this patch and
+# restores the untouched native row on the next profile boot.
+- id: ui-layout
+  disabled: true
+
 - insert:
-    - id: page-app-manager-legacy-rc2-compat
-      name: '@tingyu9527/dsh-workspace-manager/legacy-rc2-compat'
+    # Version-locked host boundary. It verifies RC2 before the Manager can
+    # expose its Remote or take over the browser root.
+    - id: workspace-manager-dsh-host-adapter
+      name: '@tingyu9527/dsh-workspace-manager/adapters/dsh/rc2'
     - id: page-app-manager
       name: '@tingyu9527/dsh-workspace-manager'
       config:

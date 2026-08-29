@@ -8,6 +8,7 @@
  * @module @deepseek-ai/dsh-page-app-manager/types
  */
 import type { Branded } from '@deepseek-ai/dsh-brand'
+import type { WorkspaceHostDescriptor } from '../host-bridge/index.ts'
 
 /** How a managed package's source spec was stated at install time (wire copy). */
 export type PageAppSourceKind = 'registry' | 'file' | 'link' | 'tarball' | 'git'
@@ -117,6 +118,8 @@ export interface PageAppRecoveryView {
 
 /** Immutable projection of the whole managed set for one profile. */
 export interface PageAppManagerSnapshot {
+  /** Auditable DSH adapter selection; clients validate this before root takeover. */
+  readonly host: WorkspaceHostDescriptor
   /** The immutable active-profile identity. */
   readonly profile: PageAppProfileIdentity
   /** Registry revision (0 when no registry has been published). */

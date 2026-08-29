@@ -13,7 +13,7 @@ import { createRequire } from 'node:module'
 import { dirname, join, parse, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isDeepStrictEqual } from 'node:util'
-import { FiberState, type Context, type Fiber } from '@deepseek-ai/cordis'
+import type { Context, Fiber, FiberState } from '@deepseek-ai/cordis'
 import { applyEntryPatches, entryListSchema, type PatchOptions } from '@deepseek-ai/cordis-plugin-include'
 import type { Entry } from '@deepseek-ai/cordis-plugin-loader'
 import { load } from 'js-yaml'
@@ -28,16 +28,45 @@ import {
   readManagerLayerPatches,
   type ProfileRuntimeApplyRequest,
   type ProfileRuntimeApplyResult,
-} from '@deepseek-ai/dsh-app-boot/profile-runtime-bridge'
+} from '../adapters/dsh/rc2/profile-runtime-bridge.mjs'
+import {
+  WORKSPACE_HOST_ADAPTER_SERVICE,
+  WORKSPACE_HOST_BRIDGE_VERSION,
+  type WorkspaceHostDescriptor,
+} from '../host-bridge/index.ts'
 
-const NAME = 'dsh workspace manager legacy rc2 compatibility'
+const NAME = 'dsh workspace manager rc2 host adapter'
 const MANAGER_PACKAGE = '@tingyu9527/dsh-workspace-manager'
 const MANAGER_ENTRY_ID = 'page-app-manager'
+const RC2_ADAPTER_PACKAGE = `${MANAGER_PACKAGE}/adapters/dsh/rc2`
 const PROFILE_PATCH_FILENAME = 'cordis.patch.yml'
+
+/** Machine-readable RC2 Host Adapter identity exposed to the Manager service. */
+export const RC2_HOST_DESCRIPTOR: WorkspaceHostDescriptor = Object.freeze({
+  hostName: 'dsh',
+  hostVersion: '0.1.1-rc.2',
+  adapterId: 'dsh-0.1.1-rc.2-layout-replacement',
+  adapterVersion: '1.0.0',
+  bridgeVersion: WORKSPACE_HOST_BRIDGE_VERSION,
+  integrationMode: 'layout-replacement',
+  capabilities: Object.freeze([
+    'native-surface', 'navigation', 'panels', 'host-events', 'page-app-remote', 'bundle-composition',
+  ]),
+})
 const PROFILE_ROOT_FILENAME = 'cordis.yml'
 
-/** Pinned first row of the manager bundle's legacy bootstrap anchor. */
-export const LEGACY_RC2_COMPAT_ENTRY_ID = 'page-app-manager-legacy-rc2-compat'
+// Cordis publishes FiberState as a const enum (type-only at runtime).
+const FIBER_STATE = Object.freeze({
+  PENDING: 0,
+  LOADING: 1,
+  ACTIVE: 2,
+  FAILED: 3,
+  DISPOSED: 4,
+  UNLOADING: 5,
+} as const)
+
+/** Pinned first row of the manager bundle's Host Adapter anchor. */
+export const RC2_HOST_ADAPTER_ENTRY_ID = 'workspace-manager-dsh-host-adapter'
 
 interface BundleBoundary {
   readonly bundlePatches: PatchOptions[]
@@ -63,18 +92,18 @@ function compatibleNativeRuntime(value: unknown): boolean {
 }
 
 function terminalFiberState(state: FiberState): boolean {
-  return state === FiberState.FAILED
-    || state === FiberState.DISPOSED
-    || state === FiberState.UNLOADING
+  return state === FIBER_STATE.FAILED
+    || state === FIBER_STATE.DISPOSED
+    || state === FIBER_STATE.UNLOADING
 }
 
 function explicitlyDisablesCompat(layer: readonly PatchOptions[]): boolean {
   const rows = applyEntryPatches(
-    [{ id: LEGACY_RC2_COMPAT_ENTRY_ID, name: `${MANAGER_PACKAGE}/legacy-rc2-compat` }],
+    [{ id: RC2_HOST_ADAPTER_ENTRY_ID, name: RC2_ADAPTER_PACKAGE }],
     structuredClone([...layer]),
     () => {},
   )
-  return rows.find(row => row.id === LEGACY_RC2_COMPAT_ENTRY_ID)?.disabled === true
+  return rows.find(row => row.id === RC2_HOST_ADAPTER_ENTRY_ID)?.disabled === true
 }
 
 function insertedRows(patch: unknown): unknown[] {
@@ -97,8 +126,8 @@ function orderedAnchorPatchIndexes(layer: readonly PatchOptions[]): number[] {
     const found = rows.some((row, index) => {
       const first = rowIdentity(row)
       const second = rowIdentity(rows[index + 1])
-      return first.id === LEGACY_RC2_COMPAT_ENTRY_ID
-        && first.name === `${MANAGER_PACKAGE}/legacy-rc2-compat`
+      return first.id === RC2_HOST_ADAPTER_ENTRY_ID
+        && first.name === RC2_ADAPTER_PACKAGE
         && second.id === MANAGER_ENTRY_ID
         && second.name === MANAGER_PACKAGE
     })
@@ -107,7 +136,7 @@ function orderedAnchorPatchIndexes(layer: readonly PatchOptions[]): number[] {
 }
 
 function anchorCount(layer: readonly PatchOptions[]): number {
-  return layer.flatMap(insertedRows).filter(row => rowIdentity(row).id === LEGACY_RC2_COMPAT_ENTRY_ID).length
+  return layer.flatMap(insertedRows).filter(row => rowIdentity(row).id === RC2_HOST_ADAPTER_ENTRY_ID).length
 }
 
 /**
@@ -263,7 +292,7 @@ export async function disposeLegacyRc2FiberAfterReadyFailure(
   activeTimeoutMs = 10_000,
 ): Promise<void> {
   ctx.logger.error(error)
-  if (ctx.fiber.state === FiberState.PENDING || ctx.fiber.state === FiberState.LOADING) {
+  if (ctx.fiber.state === FIBER_STATE.PENDING || ctx.fiber.state === FIBER_STATE.LOADING) {
     try {
       await awaitLegacyRc2FiberActive(ctx, activeTimeoutMs)
     } catch {
@@ -285,15 +314,15 @@ export async function disposeLegacyRc2FiberAfterReadyFailure(
 /** Wait until Cordis commits the bootstrap provider, without polling or awaiting this same fiber. */
 export function awaitLegacyRc2FiberActive(ctx: Context, timeoutMs = 10_000): Promise<void> {
   const stateError = (): Error | undefined => {
-    if (ctx.fiber.state === FiberState.ACTIVE) return
-    if (ctx.fiber.state === FiberState.FAILED
-      || ctx.fiber.state === FiberState.DISPOSED
-      || ctx.fiber.state === FiberState.UNLOADING) {
+    if (ctx.fiber.state === FIBER_STATE.ACTIVE) return
+    if (ctx.fiber.state === FIBER_STATE.FAILED
+      || ctx.fiber.state === FIBER_STATE.DISPOSED
+      || ctx.fiber.state === FIBER_STATE.UNLOADING) {
       return new Error(`${NAME}: compatibility fiber exited before becoming active`)
     }
   }
   const initialError = stateError()
-  if (ctx.fiber.state === FiberState.ACTIVE) return Promise.resolve()
+  if (ctx.fiber.state === FIBER_STATE.ACTIVE) return Promise.resolve()
   if (initialError !== undefined) return Promise.reject(initialError)
 
   return new Promise<void>((resolveBarrier, rejectBarrier) => {
@@ -309,7 +338,7 @@ export function awaitLegacyRc2FiberActive(ctx: Context, timeoutMs = 10_000): Pro
       else rejectBarrier(error)
     }
     const inspect = (): void => {
-      if (ctx.fiber.state === FiberState.ACTIVE) finish()
+      if (ctx.fiber.state === FIBER_STATE.ACTIVE) finish()
       else {
         const error = stateError()
         if (error !== undefined) finish(error)
@@ -320,7 +349,7 @@ export function awaitLegacyRc2FiberActive(ctx: Context, timeoutMs = 10_000): Pro
     })
     // Close the check→subscribe lost-wakeup window.
     inspect()
-    if (ctx.fiber.state !== FiberState.ACTIVE && !terminalFiberState(ctx.fiber.state)) {
+    if (ctx.fiber.state !== FIBER_STATE.ACTIVE && !terminalFiberState(ctx.fiber.state)) {
       watchdog = setTimeout(() => {
         finish(new Error(`${NAME}: compatibility fiber did not become active within ${timeoutMs}ms`))
       }, timeoutMs)
@@ -449,6 +478,7 @@ export function apply(ctx: Context): void {
   if (appBootManifest.version !== '0.1.1-rc.2') {
     throw new Error(`${NAME}: legacy bootstrap supports only public @deepseek-ai/dsh-app-boot 0.1.1-rc.2`)
   }
+  ctx.provide(WORKSPACE_HOST_ADAPTER_SERVICE, RC2_HOST_DESCRIPTOR)
   const bundleLayers = readBundleLayers(profileDirectory)
   const boundary = locateLegacyRc2BundleBoundary(patches, bundleLayers)
   const profilePatches = loadOptionalPatches(NAME, join(profileDirectory, PROFILE_PATCH_FILENAME)) ?? []
