@@ -16,7 +16,7 @@ import {
   renderPageAppRuntimeLayer,
   type PageAppManifest,
   type PageAppRegistryV1,
-} from '@deepseek-ai/dsh-page-app-profile'
+} from '../profile/index.ts'
 
 /** Profile facts the validation compares the staged package against. */
 export interface PageAppValidationContext {

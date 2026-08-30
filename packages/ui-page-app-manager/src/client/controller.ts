@@ -9,7 +9,7 @@
  * @module @deepseek-ai/dsh-client-ui-page-app-manager/client/controller
  */
 
-import type { StoredEntry } from '@deepseek-ai/dsh-client-ui-slots'
+import type { HostContribution as StoredEntry } from '../../host-bridge/index.ts'
 import type {
   PageAppActivationRequestedEvent, PageAppClientInstanceId, PageAppInstallSource,
   PageAppManagerSnapshot, PageAppTransactionId,

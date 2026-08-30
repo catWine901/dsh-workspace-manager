@@ -49,6 +49,8 @@ export const zh = {
 
 /** Workspace Apps settings locale key union. */
 export type PageAppSettingsKey = keyof typeof zh
+/** Host-neutral translation function consumed by Workspace Manager features. */
+export type Translate<K extends string = PageAppSettingsKey> = (key: K, values?: Readonly<Record<string, unknown>>) => string
 
 /** English dictionary checked against the Chinese key set. */
 export const en = {

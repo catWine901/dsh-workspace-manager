@@ -3,11 +3,20 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  width: 200px;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
   padding: 8px;
   overflow-y: auto;
   background: var(--dsw-specific-sidebar-fill);
   border-right: 1px solid var(--dsw-alias-border-l1);
+}
+
+.rail[data-variant='compact'] {
+  width: 56px;
+  padding: 6px;
+  box-sizing: border-box;
 }
 
 .item {
@@ -22,6 +31,12 @@
   font: inherit;
   text-align: start;
   cursor: pointer;
+}
+
+.rail[data-variant='compact'] .item {
+  justify-content: center;
+  padding: 8px;
+  box-sizing: border-box;
 }
 
 .item:hover {
@@ -40,5 +55,11 @@
 .itemLabel {
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+
+.rail[data-variant='compact'] .itemLabel {
+  max-width: 100%;
 }

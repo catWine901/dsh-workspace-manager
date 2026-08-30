@@ -25,6 +25,8 @@ export interface PageAppRailRow {
 
 /** Injected props the shell hands to the rail. */
 export interface PageAppRailInjected {
+  /** Visual density for the mounting shell; omitted keeps the full rail. */
+  readonly variant?: 'full' | 'compact'
   /** Ordered eligible rows (DSH/Agent is always rendered first, not a row). */
   readonly rows: readonly PageAppRailRow[]
   /** Active page id, or null when the built-in DSH page is active. */
@@ -54,7 +56,7 @@ function onRailKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
 }
 
 /** The permanent far-left launcher (see module doc). */
-export function PageAppRail({ rows, activePageId, select }: PageAppRailInjected) {
+export function PageAppRail({ rows, activePageId, select, variant = 'full' }: PageAppRailInjected) {
   const items = [DSH_ROW, ...rows]
   const active = activePageId ?? PAGE_APP_DSH_PAGE
 
@@ -64,6 +66,7 @@ export function PageAppRail({ rows, activePageId, select }: PageAppRailInjected)
       aria-label="Workspace Apps"
       onKeyDown={onRailKeyDown}
       data-page-app-rail
+      data-variant={variant}
     >
       {items.map((row) => {
         const isActive = row.pageId === active
@@ -72,6 +75,7 @@ export function PageAppRail({ rows, activePageId, select }: PageAppRailInjected)
             key={row.pageId}
             type="button"
             className={css.item}
+            title={row.label}
             data-page-app-rail-item
             data-page-app-rail-active={isActive ? 'true' : undefined}
             aria-current={isActive ? 'page' : undefined}

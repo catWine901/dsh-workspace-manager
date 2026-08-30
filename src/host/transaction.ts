@@ -24,7 +24,7 @@ import {
   managedRootWrapperRow,
   type ExpectedManagedRoot,
   type ProfileRuntime,
-} from '@deepseek-ai/dsh-app-boot/profile-runtime-bridge'
+} from '../adapters/dsh/rc2/profile-runtime-bridge.mjs'
 import { managedRootHash, type EntryOptions } from './adapter.ts'
 import {
   advancePageAppJournalPhase,
@@ -42,7 +42,7 @@ import {
   type PageAppRegistryEntry,
   type PageAppRegistryV1,
   type ValidatedManagedRoot,
-} from '@deepseek-ai/dsh-page-app-profile'
+} from '../profile/index.ts'
 import type { PageAppInstallSource } from './types.ts'
 import type { ClientActivationRequest, PageAppClientInstanceId, PageAppTransactionId } from './types.ts'
 import { PageAppActivationGate } from './activation.ts'

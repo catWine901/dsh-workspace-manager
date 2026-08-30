@@ -1,0 +1,15 @@
+{
+  "$schema": "./docs/compatibility-matrix.schema.json",
+  "hostBridgeVersion": 1,
+  "adapters": [
+    {
+      "dshVersionRange": "=0.1.1-rc.2",
+      "adapterId": "dsh-0.1.1-rc.2-layout-replacement",
+      "adapterVersion": "1.0.0",
+      "rootIntegrationMode": "layout-replacement",
+      "hostBridgeVersion": 1,
+      "testStatus": "supported",
+      "knownLimitations": []
+    }
+  ]
+}

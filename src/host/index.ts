@@ -26,7 +26,7 @@ import {
   PROFILE_RUNTIME_SERVICE,
   WORKBENCH_RUNTIME_SERVICE,
   type ProfileRuntime,
-} from '@deepseek-ai/dsh-app-boot/profile-runtime-bridge'
+} from '../adapters/dsh/rc2/profile-runtime-bridge.mjs'
 import {
   parsePageAppJournal,
   parsePageAppManifest,
@@ -34,7 +34,7 @@ import {
   resolvePageAppProfilePaths,
   type PageAppRegistryEntry,
   type PageAppRegistryV1,
-} from '@deepseek-ai/dsh-page-app-profile'
+} from '../profile/index.ts'
 import type { PageAppClientInstanceId, PageAppJournalPhase, PageAppManagerConfig, PageAppOperationState, PageAppOperationView, PageAppRuntimeStateLabel, PageAppTransactionId } from './types.ts'
 import type { PageAppManagerSnapshot, PageAppView, PageAppInstallSource } from './types.ts'
 import { parsePageAppInstallSource } from './source.ts'
@@ -42,6 +42,7 @@ import { PageAppLifecycle } from './transaction.ts'
 import { createPnpmExecutor, type PageAppPackageExecutor } from './executor.ts'
 import { recoverPageAppTransaction } from './recovery.ts'
 import { createWorkbenchRuntime } from './workbench-runtime.ts'
+import { WORKSPACE_HOST_ADAPTER_SERVICE, type WorkspaceHostDescriptor } from '../host-bridge/index.ts'
 
 export * from './types.ts'
 export * from './source.ts'
@@ -131,15 +132,18 @@ function readRegistrySync(profileDir: string): { registry: PageAppRegistryV1 | n
 export class PageAppManager extends TypertRemoteService {
   private readonly profileRuntime: ProfileRuntime
   private readonly lifecycle: PageAppLifecycle
+  private readonly hostDescriptor: WorkspaceHostDescriptor
 
   constructor(ctx: Context, options: {
     profileRuntime: ProfileRuntime
     executor?: PageAppPackageExecutor
     /** The resolved plugin config: the Host settlement-wait cap. */
     config: { settlementTimeoutMs: number }
+    hostDescriptor: WorkspaceHostDescriptor
   }) {
     super(ctx, 'pageAppManager')
     this.profileRuntime = options.profileRuntime
+    this.hostDescriptor = Object.freeze({ ...options.hostDescriptor, capabilities: Object.freeze([...options.hostDescriptor.capabilities]) })
     this.lifecycle = new PageAppLifecycle({
       profileDir: this.profileRuntime.identity.directory,
       executor: options.executor ?? createPnpmExecutor(),
@@ -300,6 +304,7 @@ export class PageAppManager extends TypertRemoteService {
       ? []
       : registry.entries.map(row => Object.freeze(this.viewOf(row, loader)))
     return Object.freeze({
+      host: this.hostDescriptor,
       profile: Object.freeze({ ...profile }),
       revision: registry?.revision ?? 0,
       entries: Object.freeze(entries),
@@ -479,7 +484,7 @@ function readJournalOperation(profileDir: string, recoveryVisible: boolean): Pag
 export const name = 'page-app-manager'
 
 /** Required services: the launcher-owned profile runtime and the Loader. */
-export const inject = [PROFILE_RUNTIME_SERVICE, 'loader']
+export const inject = [PROFILE_RUNTIME_SERVICE, WORKSPACE_HOST_ADAPTER_SERVICE, 'loader']
 
 /** Validated plugin config: the Host settlement-wait cap (defaults in the schema). */
 export const Config = z.object({
@@ -504,6 +509,8 @@ export const Config = z.object({
  */
 export function apply(ctx: Context, config: PageAppManagerConfig): void {
   const runtime = ctx.get(PROFILE_RUNTIME_SERVICE) as ProfileRuntime
+  const hostDescriptor = ctx.get(WORKSPACE_HOST_ADAPTER_SERVICE) as WorkspaceHostDescriptor | undefined
+  if (hostDescriptor === undefined) throw new Error('page-app-manager: no verified DSH Host Adapter is active')
   // The Workbench Runtime lives and dies with the manager fiber: `ctx.provide`
   // registers a fiber effect whose disposer removes the service and notifies
   // every fiber injecting it, so an uninstalled or reloaded manager leaves the
@@ -513,6 +520,7 @@ export function apply(ctx: Context, config: PageAppManagerConfig): void {
   // Service base auto-unregisters it when the fiber unloads.
   const manager = new PageAppManager(ctx, {
     profileRuntime: runtime,
+    hostDescriptor,
     config: { settlementTimeoutMs: config.settlementTimeoutMs ?? 60_000 },
   })
   ctx.effect(() => () => { manager.dispose() }, 'page-app-manager: abort in-flight transactions when the manager fiber unloads')

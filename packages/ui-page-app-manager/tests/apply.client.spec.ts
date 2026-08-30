@@ -8,9 +8,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PageAppActivationRequestedEvent } from '@deepseek-ai/dsh-page-app-manager/types'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-runtime/client'
-import type { SlotRendererHost } from '@deepseek-ai/dsh-client-ui-slots'
+import type { PropsRenderSlots, PropsRuntime, SlotComponent, SlotRendererHost } from '@deepseek-ai/dsh-client-ui-slots'
+import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import { apply, PageAppShell, type PageAppShellInjected, inject } from '@deepseek-ai/dsh-client-ui-page-app-manager/client'
 import type { PageAppManagerRemoteMethods, PageAppRemoteEvents } from '../src/client/contracts.ts'
+import { Rc2PageAppShell } from '../src/client/Rc2PageAppShell.tsx'
 import { FakeRemote, fakeEntry } from './fake-page-app.client.ts'
 
 beforeEach(() => {
@@ -67,6 +69,19 @@ async function benchWithRemote(): Promise<{ ctx: Context; slots: SlotRegistry; r
   return { ctx, slots: ctx.get('slots') as SlotRegistry, remote }
 }
 
+/** Declare the public Native root with the wrapper seat that rc2 augments. */
+function declareNativeRoot(slots: SlotRegistry, NativeRoot: SlotComponent<PropsRuntime<'root'> & PropsRenderSlots<'page-app.shell'>>) {
+  return slots.register({
+    name: 'root',
+    children: {
+      'page-app.shell': {
+        kind: 'single',
+        scope: 'root',
+      },
+    },
+  }, NativeRoot)
+}
+
 /** A pending activation event fixture. A non-initiating client instance only
  *  starts the graph-convergence tracking wait (never the acknowledgement), so
  *  the residual-interval assertion covers exactly one wait per event. */
@@ -88,7 +103,8 @@ describe('ui-page-app-manager client apply', () => {
     expect(inject).toEqual(['slots', 'locale'])
   })
 
-  it('registers exactly one root contribution declaring both child seats', async () => {
+  it('continues to own root through PageAppShell outside rc2 mode', async () => {
+    vi.stubEnv('DSH_CLIENT_PAGE_APP_MANAGER_LEGACY_RC2', 'false')
     const { ctx, slots } = await bench()
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
@@ -100,17 +116,93 @@ describe('ui-page-app-manager client apply', () => {
     expect(slots.entries('root')).toHaveLength(0)
   })
 
-  it('keeps the public rc2 Native root and contributes settings without claiming its legacy seat', async () => {
+  it('keeps the patched rc2 Native root and mounts the workspace manager through page-app.shell', async () => {
     vi.stubEnv('DSH_CLIENT_PAGE_APP_MANAGER_LEGACY_RC2', 'true')
     const { ctx, slots } = await benchWithRemote()
-    const NativeRoot = (): null => null
-    const disposeNative = slots.register({ name: 'root' }, NativeRoot)
+
+    const NativeRoot = (props: PropsRuntime<'root'> & PropsRenderSlots<'page-app.shell'>) => {
+      return props.renderSlot('page-app.shell', { nativeSurface: null })
+    }
+
+    const disposeNative = declareNativeRoot(slots, NativeRoot)
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
-    expect(slots.entries('root')).toHaveLength(1)
-    expect(slots.entries('root')[0]!.component).toBe(NativeRoot)
+    expect(slots.entriesOfSlot('root')).toHaveLength(1)
+    expect(slots.entriesOfSlot('root')[0]!.component).toBe(NativeRoot)
+    expect(slots.spec('page-app.shell.builtin')).toBeUndefined()
+    expect(slots.entries('page-app.shell')).toHaveLength(1)
+    const wrapper = slots.entries('page-app.shell')[0]!
+    expect(wrapper.component).toBe(Rc2PageAppShell)
+    expect(wrapper.options).toMatchObject({ priority: 0 })
+    const overlayInjected = (wrapper.inject as unknown as () => PageAppShellInjected)()
+    expect(overlayInjected.hooks.pageApp).toBeTypeOf('object')
+    expect(overlayInjected.select).toBeTypeOf('function')
+    expect(slots.spec('page-app.shell.surface')).toEqual({
+      kind: 'keyed',
+      scope: 'root',
+    })
     await fiber.dispose()
-    expect(slots.entries('root')).toHaveLength(1)
+    expect(slots.entries('page-app.shell')).toHaveLength(0)
+    expect(slots.entriesOfSlot('root')[0]!.component).toBe(NativeRoot)
+    disposeNative()
+  })
+
+  it('waits for the public wrapper declaration before registering only the rc2 wrapper', async () => {
+    vi.stubEnv('DSH_CLIENT_PAGE_APP_MANAGER_LEGACY_RC2', 'true')
+    const { ctx, slots } = await benchWithRemote()
+    const NativeRoot = (props: PropsRuntime<'root'> & PropsRenderSlots<'page-app.shell'>) => props.renderSlot('page-app.shell', { nativeSurface: null })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+
+    expect(slots.entries('page-app.shell')).toHaveLength(0)
+    const disposeNative = declareNativeRoot(slots, NativeRoot)
+    await Promise.resolve()
+    expect(slots.entriesOfSlot('root')).toHaveLength(1)
+    expect(slots.entriesOfSlot('root')[0]!.component).toBe(NativeRoot)
+    expect(slots.spec('page-app.shell.builtin')).toBeUndefined()
+    expect(slots.entries('page-app.shell')).toHaveLength(1)
+
+    await fiber.dispose()
+    disposeNative()
+  })
+
+  it('releases and recreates only the rc2 wrapper across public wrapper redeclaration', async () => {
+    vi.stubEnv('DSH_CLIENT_PAGE_APP_MANAGER_LEGACY_RC2', 'true')
+    const { ctx, slots } = await benchWithRemote()
+    const NativeRoot = (props: PropsRuntime<'root'> & PropsRenderSlots<'page-app.shell'>) => props.renderSlot('page-app.shell', { nativeSurface: null })
+    let disposeNative = declareNativeRoot(slots, NativeRoot)
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    expect(slots.entries('page-app.shell')).toHaveLength(1)
+
+    disposeNative()
+    expect(slots.entries('page-app.shell')).toHaveLength(0)
+    disposeNative = declareNativeRoot(slots, NativeRoot)
+    await Promise.resolve()
+    expect(slots.entriesOfSlot('root')).toHaveLength(1)
+    expect(slots.entriesOfSlot('root')[0]!.component).toBe(NativeRoot)
+    expect(slots.entries('page-app.shell')).toHaveLength(1)
+    expect(slots.spec('page-app.shell.builtin')).toBeUndefined()
+
+    await fiber.dispose()
+    disposeNative()
+  })
+
+  it('does not resurrect the rc2 wrapper after the waiting manager is disposed', async () => {
+    vi.stubEnv('DSH_CLIENT_PAGE_APP_MANAGER_LEGACY_RC2', 'true')
+    const { ctx, slots } = await benchWithRemote()
+    const NativeRoot = (props: PropsRuntime<'root'> & PropsRenderSlots<'page-app.shell'>) => props.renderSlot('page-app.shell', { nativeSurface: null })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    expect(slots.entries('page-app.shell')).toHaveLength(0)
+
+    await fiber.dispose()
+    const disposeNative = declareNativeRoot(slots, NativeRoot)
+    await Promise.resolve()
+    expect(slots.entriesOfSlot('root')).toHaveLength(1)
+    expect(slots.entriesOfSlot('root')[0]!.component).toBe(NativeRoot)
+    expect(slots.spec('page-app.shell.builtin')).toBeUndefined()
+    expect(slots.entries('page-app.shell')).toHaveLength(0)
     disposeNative()
   })
 
